@@ -23,7 +23,7 @@ class Case:
 
         self.__x = x
         self.__y = y
-        self.__value = value
+        self.set_value(value)
 
     """
     Creation des getters/setters pour x ,y et valeur
