@@ -13,7 +13,13 @@ class Grille:
             for y in range(self.taille):#boucle pour la cologne 
                 grille.append([x, y, 0])
         return {"grille_sudoku": grille}
-
+    
+    def exporter_json(self, nom_fichier="grille_sudoku.json"):
+        #cree le fichier et le sauvegarde 
+        with open(nom_fichier, 'w', encoding='utf-8') as f:
+            json.dump(self.donnees, f, indent=4)
+        print(f"La grille a été exportée dans le fichier : {nom_fichier}")
+        
     def charger_image(self):
         chemin_image = "Exemples de grille-20260609/grille1.png" #chemin relatif du fichier ou hardcoder 
         #gere l'ouverture du fichier et l'affichage du fichier 
@@ -29,4 +35,5 @@ class Grille:
 
 # Exemple d'utilisation :
 ma_grille = Grille(9)
+ma_grille.exporter_json()
 ma_grille.charger_image()
