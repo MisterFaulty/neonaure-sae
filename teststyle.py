@@ -18,7 +18,7 @@ class CaseIHM(QLabel):
         self.bordures = []
         
         self.setFixedSize(60, 60)
-        self.setFont(QFont("Segoe UI", 18, QFont.Weight.Bold))
+        self.setFont(QFont("Arial", 18, QFont.Weight.Bold))
         self.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
     def configurer_bordures(self, bordures_grasses):
@@ -109,10 +109,8 @@ class NeonaurGrilleSeule(QMainWindow):
     def keyPressEvent(self, event):
         if self.case_selectionnee:
             texte = event.text()
-            # Seuls les chiffres de 1 à 5 sont acceptés (6 à 9 sont bloqués ici)
             if texte.isdigit() and "1" <= texte <= "5":
                 self.case_selectionnee.fixer_valeur(int(texte))
-            # Permet toujours d'effacer avec Retour Arrière, Suppr ou 0
             elif event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_0):
                 self.case_selectionnee.fixer_valeur(0)
 
