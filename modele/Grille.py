@@ -25,6 +25,7 @@ class Grille:
     def __init__(self, width=8, height=8):
         self.__height = height
         self.__width = width
+        self.__cases_by_pos = {}
         self.__cases = []
         self.__motifs = []
         self.__generate_empty()
@@ -32,9 +33,12 @@ class Grille:
     def __generate_empty(self):
         for x in range(self.__width):
             for y in range(self.__height):
-                self.__cases.append(Case(x, y, 0))
+                case = Case(x, y, 0)
+                self.__cases.append(case)
+                self.__cases_by_pos[(x, y)] = case
 
     # --- Getters ---
+
     def get_width(self):
         return self.__width
 
@@ -48,30 +52,24 @@ class Grille:
         return self.__motifs
 
     def get_case(self, x, y):
-        for case in self.__cases:
-            if case.get_x() == x and case.get_y() == y:
-                return case
-        return None
-
-    def _get_motif_cases(self, motif):
-        """Retourne la liste des cases d'un motif en gérant get_case() et get_cases()."""
-        return motif.get_cases() if hasattr(motif, 'get_cases') else motif.get_case()
+        return self.__cases_by_pos.get((x, y))
 
     def get_motif_of(self, x, y):
         """Retourne le motif contenant la case (x, y), ou None."""
         for motif in self.__motifs:
-            for case in self._get_motif_cases(motif):
+            for case in motif.get_cases():
                 if case.get_x() == x and case.get_y() == y:
                     return motif
         return None
 
     def add_motif(self, motif):
         self.__motifs.append(motif)
-        # S'assurer que les cases du motif existent dans la grille
-        for case in self._get_motif_cases(motif):
+        # S'assurer que les cases du motif existent dans la grille et l'index
+        for case in motif.get_cases():
             existing = self.get_case(case.get_x(), case.get_y())
             if existing is None:
                 self.__cases.append(case)
+                self.__cases_by_pos[(case.get_x(), case.get_y())] = case
 
     # ------------------------------------------------------------------
     #  Création de motifs à partir de données [[x, y, value], ...]
@@ -98,11 +96,12 @@ class Grille:
             x, y, value = cell[0], cell[1], cell[2]
             case = self.get_case(x, y)
             if case is not None:
-                case.set_value(value)  # Lève ValueError si value > 5
+                case.set_value(value)
             else:
-                case = Case(x, y, value)  # Lève ValueError si value > 5
+                case = Case(x, y, value)
                 self.__cases.append(case)
-            motif.add_case(case)  # Lève ValueError si > MAX_SIZE
+                self.__cases_by_pos[(x, y)] = case
+            motif.add_case(case)
         self.__motifs.append(motif)
         return motif
 
@@ -122,16 +121,13 @@ class Grille:
             max_size:    taille maximale d'un motif (défaut 5, max 5)
             hint_chance: probabilité qu'une case reçoive un indice (défaut 0.25)
         """
-        # Bornes de sécurité
         min_size = max(1, min(min_size, Motif.MAX_SIZE))
         max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
 
         self.__motifs = []
-        # Réinitialiser toutes les cases à 0
         for case in self.__cases:
             case.set_value(0)
 
-        # Grille de visite pour savoir quelles cases sont déjà assignées
         visited = [[False] * self.__height for _ in range(self.__width)]
         motif_index = 1
 
@@ -140,12 +136,10 @@ class Grille:
                 if visited[x][y]:
                     continue
 
-                # Débuter un nouveau motif depuis (x, y)
                 motif = Motif(f"motif{motif_index}")
                 motif_index += 1
                 target_size = random.randint(min_size, max_size)
 
-                # Croissance en flood-fill aléatoire
                 queue = [(x, y)]
                 while queue and motif.get_size() < target_size:
                     idx = random.randint(0, len(queue) - 1)
@@ -162,9 +156,9 @@ class Grille:
                     if case is None:
                         case = Case(cx, cy, 0)
                         self.__cases.append(case)
+                        self.__cases_by_pos[(cx, cy)] = case
                     motif.add_case(case)
 
-                    # Voisins orthogonaux mélangés
                     neighbours = [(cx + 1, cy), (cx - 1, cy),
                                   (cx, cy + 1), (cx, cy - 1)]
                     random.shuffle(neighbours)
@@ -173,11 +167,9 @@ class Grille:
                             if not visited[nx][ny]:
                                 queue.append((nx, ny))
 
-                # Assigner des indices (valeurs 1..taille_du_motif)
-                # Un indice doit être <= taille du motif et <= 5 (max Case)
                 size = motif.get_size()
                 max_hint = min(size, 5)
-                for case in self._get_motif_cases(motif):
+                for case in motif.get_cases():
                     if max_hint > 0 and random.random() < hint_chance:
                         case.set_value(random.randint(1, max_hint))
 
@@ -201,15 +193,17 @@ class Grille:
                         dépasse Motif.MAX_SIZE cases
         """
         self.__cases = []
+        self.__cases_by_pos = {}
         self.__motifs = []
         max_x, max_y = 0, 0
         for name, cells_data in data.items():
             motif = Motif(name)
             for cell in cells_data:
                 x, y, value = cell[0], cell[1], cell[2]
-                case = Case(x, y, value)  # ValueError si value > 5
-                motif.add_case(case)       # ValueError si > MAX_SIZE
+                case = Case(x, y, value)
+                motif.add_case(case)
                 self.__cases.append(case)
+                self.__cases_by_pos[(x, y)] = case
                 if x > max_x:
                     max_x = x
                 if y > max_y:
@@ -241,7 +235,7 @@ class Grille:
         file_path = self._get_absolute_path(file_path)
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
-
+        self.__cases_by_pos = {}
         self.__cases = []
         self.__motifs = []
         max_x, max_y = 0, 0
@@ -249,9 +243,10 @@ class Grille:
             motif = Motif(name)
             for cell in cells:
                 x, y, value = cell[0], cell[1], cell[2]
-                case = Case(x, y, value)  # ValueError si value > 5
-                motif.add_case(case)       # ValueError si > MAX_SIZE
+                case = Case(x, y, value)
+                motif.add_case(case)
                 self.__cases.append(case)
+                self.__cases_by_pos[(x, y)] = case
                 if x > max_x:
                     max_x = x
                 if y > max_y:
@@ -266,7 +261,7 @@ class Grille:
         data = {}
         for motif in self.__motifs:
             cells = []
-            for case in self._get_motif_cases(motif):
+            for case in motif.get_cases():
                 cells.append([case.get_x(), case.get_y(), case.get_value()])
             data[motif.get_name()] = cells
 
@@ -275,7 +270,7 @@ class Grille:
         for name, cells in data.items():
             cells_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in cells)
             lines.append(f'  "{name}": [{cells_str}]')
-        
+
         json_content = "{\n" + ",\n".join(lines) + "\n}"
 
         with open(file_path, "w", encoding="utf-8") as f:
@@ -289,7 +284,7 @@ class Grille:
         data = {}
         for motif in self.__motifs:
             cells = []
-            for case in self._get_motif_cases(motif):
+            for case in motif.get_cases():
                 cells.append([case.get_x(), case.get_y(), case.get_value()])
             data[motif.get_name()] = cells
         return data
@@ -344,7 +339,3 @@ if __name__ == "__main__":
     print("\n=== Test 6 : Grille rectangulaire 6x4 ===")
     g3 = Grille(6, 4)
     print(f"Dimensions : {g3.get_width()} x {g3.get_height()}")
-
-
-
-
