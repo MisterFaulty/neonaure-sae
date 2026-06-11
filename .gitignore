@@ -21,3 +21,5 @@ venv/
 .DS_Store
 modele/grille_manuelle.json
 modele/grille_save.json
+modele/grille_manuelle.json
+modele/grille_save.json
