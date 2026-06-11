@@ -80,7 +80,7 @@ if __name__ == "__main__":
 
     print("--- Running Validator Tests ---")
 
-    g = Grille(8, 8)
+    g = Grille(2, 2)
 
     motif_a = Motif("Row 0")
     motif_a.add_case(Case(0, 0, 0))
