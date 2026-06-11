@@ -1,0 +1,21 @@
+# Cache Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Fichiers de test générés
+grille_save.json
+grille_test.json
+grille_sudoku.json
+
+# Environnements virtuels
+.venv/
+venv/
+
+# IDE / éditeurs
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
