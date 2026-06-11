@@ -56,7 +56,7 @@ class Grille:
     def get_motif_of(self, x, y):
         """Retourne le motif contenant la case (x, y), ou None."""
         for motif in self.__motifs:
-            for case in motif.get_case():
+            for case in motif.get_cases():
                 if case.get_x() == x and case.get_y() == y:
                     return motif
         return None
@@ -285,8 +285,8 @@ class Grille:
         data = {}
         for motif in self.__motifs:
             cells = []
-            for case in motif.get_case():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
+            for cases in motif.get_cases():
+                cells.append([cases.get_x(),cases.get_y(),cases.get_value()])
             data[motif.get_name()] = cells
         return data
 
@@ -312,10 +312,34 @@ class Grille:
 
 
 if __name__ == "__main__":
-    # Génération aléatoire d'une nouvelle grille de motifs
-    g = Grille(8, 8)
-    g.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
-    
-    print(g)
-    g.save_json("grille_manuelle.json")
-    print("→ Sauvegardé une grille aléatoire dans grille_manuelle.json\n")
+    print("=== Test 1 : Grille vide 8x8 ===")
+    g = Grille()
+    print(f"Dimensions : {g.get_width()} x {g.get_height()}")
+    print(f"Nombre de cases : {len(g.get_cases())}")
+
+    print("\n=== Test 2 : Chargement de grille1.json ===")
+    g2 = Grille()
+    g2.load_json("grille1.json")
+    print(g2)
+
+    print("\n=== Test 3 : Case (1,1) ===")
+    c = g2.get_case(1, 1)
+    print(f"Case trouvée : {c}")
+
+    print("\n=== Test 4 : Motif contenant (1,1) ===")
+    m = g2.get_motif_of(1, 1)
+    print(f"Motif : {m.get_name() if m else None}")
+
+   # print("\n=== Test 5 : Sauvegarde ===")
+    #g2.save_json("grille_save.json")
+    #print("Fichier sauvegardé.")
+
+    print("\n=== Test 6 : Grille rectangulaire 6x4 ===")
+    g3 = Grille(6, 4)
+    print(f"Dimensions : {g3.get_width()} x {g3.get_height()}")
+    print(f"Nombre de cases : {len(g3.get_cases())}")
+
+
+
+
+
