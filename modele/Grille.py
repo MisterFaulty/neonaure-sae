@@ -47,7 +47,7 @@ class Grille:
 
     def get_motif_of(self,x,y):
         for motif in self.__motifs:
-            for case in self.__cases:
+            for case in motif.get_cases():
                 if case.get_x() == x and case.get_y() == y:
                     return motif
         return None
@@ -85,7 +85,7 @@ class Grille:
         data = {}
         for motif in self.__motifs:
             cells = []
-            for cases in motif.get_case():
+            for cases in motif.get_cases():
                 cells.append([cases.get_x(),cases.get_y(),cases.get_value()])
             data[motif.get_name()] = cells
         with open(file_path,"w" , encoding='utf-8') as f:
@@ -130,9 +130,9 @@ if __name__ == "__main__":
     m = g2.get_motif_of(1, 1)
     print(f"Motif : {m.get_name() if m else None}")
 
-    print("\n=== Test 5 : Sauvegarde ===")
-    g2.save_json("grille_save.json")
-    print("Fichier sauvegardé.")
+   # print("\n=== Test 5 : Sauvegarde ===")
+    #g2.save_json("grille_save.json")
+    #print("Fichier sauvegardé.")
 
     print("\n=== Test 6 : Grille rectangulaire 6x4 ===")
     g3 = Grille(6, 4)
