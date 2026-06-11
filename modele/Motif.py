@@ -38,7 +38,7 @@ class Motif:
         """Retourne le nom du motif."""
         return self.__name
 
-    def get_case(self):
+    def get_cases(self):
         """Retourne la liste des cases du motif."""
         return self.__case
 
