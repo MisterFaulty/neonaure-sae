@@ -4,11 +4,103 @@
 # le générateur de grille et le solver ont quelques problèmes
 # fichier """final""" à revoir côté algo
 # --------------------------------------------------------------------------------------------------------------- #
-
 import sys
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+modele_dir = os.path.join(base_dir, 'modele')
+if modele_dir not in sys.path:
+    sys.path.insert(0, modele_dir)
+
+# ── Étape 1 : charger Case et le patcher AVANT Grille ────────────────────────
+import modele.Case as _cm
+
+_OrigCase = _cm.Case
+
+class Case(_OrigCase):
+    def __init__(self, x, y, value=0):
+        self._is_hint = False
+        super().__init__(x, y, value)
+    def is_hint(self):
+        return getattr(self, '_is_hint', False)
+    def set_hint(self, v):
+        self._is_hint = v
+
+# Injecter la classe patchée dans tous les points d'import possibles
+_cm.Case = Case
+sys.modules['modele.Case'] = _cm
+sys.modules['Case'] = _cm           # Grille.py fait "from Case import Case"
+
+# ── Étape 2 : importer le reste du modèle ────────────────────────────────────
+from modele.Motif import Motif
+from modele.Grille import Grille
+from modele.Validator import Validator
+from modele.Solver import Solver
+
+# ── Patch Grille : ajouter generate_motifs ────────────────────────────────────
+def _generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
+    import random as _r
+    min_size = max(1, min(min_size, Motif.MAX_SIZE))
+    max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
+
+    self._Grille__motifs = []
+    for c in self._Grille__cases:
+        c.set_value(0)
+        if hasattr(c, 'set_hint'):
+            c.set_hint(False)
+
+    visited = [[False] * self._Grille__height for _ in range(self._Grille__width)]
+    idx = 1
+    for x in range(self._Grille__width):
+        for y in range(self._Grille__height):
+            if visited[x][y]:
+                continue
+            motif = Motif(f"motif{idx}"); idx += 1
+            target = _r.randint(min_size, max_size)
+            queue = [(x, y)]
+            while queue and motif.get_size() < target:
+                i = _r.randint(0, len(queue) - 1)
+                cx, cy = queue.pop(i)
+                if not (0 <= cx < self._Grille__width and 0 <= cy < self._Grille__height):
+                    continue
+                if visited[cx][cy]:
+                    continue
+                visited[cx][cy] = True
+                cell = self.get_case(cx, cy)
+                if cell is None:
+                    cell = Case(cx, cy, 0)
+                    self._Grille__cases.append(cell)
+                    self._Grille__cases_by_pos[(cx, cy)] = cell
+                motif.add_case(cell)
+                for nx, ny in [(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)]:
+                    if 0 <= nx < self._Grille__width and 0 <= ny < self._Grille__height and not visited[nx][ny]:
+                        queue.append((nx, ny))
+            sz = motif.get_size()
+            for cell in motif.get_cases():
+                if sz > 0 and _r.random() < hint_chance:
+                    cell.set_value(_r.randint(1, min(sz, 5)))
+                    if hasattr(cell, 'set_hint'):
+                        cell.set_hint(True)
+            self._Grille__motifs.append(motif)
+
+Grille.generate_motifs = _generate_motifs
+
+# ── Patch Solver : ajouter get_hint ───────────────────────────────────────────
+def _get_hint(grid):
+    original = {(c.get_x(), c.get_y()): c.get_value() for c in grid.get_cases()}
+    if Solver.solve(grid):
+        for (x, y), orig in original.items():
+            if orig == 0:
+                val = grid.get_case(x, y).get_value()
+                for (rx, ry), rv in original.items():
+                    grid.get_case(rx, ry).set_value(rv)
+                return x, y, val
+    for (x, y), v in original.items():
+        grid.get_case(x, y).set_value(v)
+    return None
+
+Solver.get_hint = _get_hint
 import json
 import random
-import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
@@ -16,344 +108,6 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
-
-# == Classes ========================================================================================================== #
-
-class Case:
-
-    def __init__(self, x, y, value=0):
-        self.__x = x
-        self.__y = y
-        self.__value = 0
-        self.__is_hint = False
-        self.set_value(value)
-
-    def get_x(self):
-        return self.__x
-
-    def get_y(self):
-        return self.__y
-
-    def get_value(self):
-        return self.__value
-
-    def is_hint(self):
-        return self.__is_hint
-
-    def set_hint(self, is_hint):
-        self.__is_hint = is_hint
-
-    def set_value(self, value):
-        if value < 0 or value > 5:
-            raise ValueError("La valeur doit être entre 0 et 5")
-        self.__value = value
-
-    def __str__(self):
-        return f"Case({self.__x},{self.__y},{self.__value})"
-
-
-class Motif:
-    MAX_SIZE = 5
-
-    def __init__(self, name):
-        self.__name = name
-        self.__cases = []
-
-    def get_name(self):
-        return self.__name
-
-    def get_cases(self):
-        return self.__cases
-
-    def get_size(self):
-        return len(self.__cases)
-
-    def add_case(self, case):
-        if self.get_size() >= Motif.MAX_SIZE:
-            raise ValueError(f"Un motif ne peut pas dépasser {Motif.MAX_SIZE} cases")
-        self.__cases.append(case)
-
-    def contains(self, x, y):
-        for case in self.__cases:
-            if case.get_x() == x and case.get_y() == y:
-                return True
-        return False
-
-    def contains_value(self, value):
-        for case in self.__cases:
-            if case.get_value() == value:
-                return True
-        return False
-
-    def __str__(self):
-        cases_str = ", ".join(str(c) for c in self.__cases)
-        return f"Motif({self.__name}, {self.get_size()} cases): [{cases_str}]"
-
-
-class Grille:
-    def __init__(self, width=8, height=8):
-        self.__height = height
-        self.__width = width
-        self.__cases_by_pos = {}
-        self.__cases = []
-        self.__motifs = []
-        self.__generate_empty()
-
-    def __generate_empty(self):
-        for y in range(self.__height):
-            for x in range(self.__width):
-                case = Case(x, y, 0)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-
-    def get_width(self):
-        return self.__width
-
-    def get_height(self):
-        return self.__height
-
-    def get_cases(self):
-        return self.__cases
-
-    def get_motifs(self):
-        return self.__motifs
-
-    def get_case(self, x, y):
-        return self.__cases_by_pos.get((x, y))
-
-    def get_motif_of(self, x, y):
-        for motif in self.__motifs:
-            if motif.contains(x, y):
-                return motif
-        return None
-
-    def add_motif(self, motif):
-        self.__motifs.append(motif)
-        for case in motif.get_cases():
-            existing = self.get_case(case.get_x(), case.get_y())
-            if existing is None:
-                self.__cases.append(case)
-                self.__cases_by_pos[(case.get_x(), case.get_y())] = case
-
-    def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
-        min_size = max(1, min(min_size, Motif.MAX_SIZE))
-        max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
-
-        self.__motifs = []
-        for case in self.__cases:
-            case.set_value(0)
-            case.set_hint(False)
-
-        visited = [[False] * self.__height for _ in range(self.__width)]
-        motif_index = 1
-
-        for x in range(self.__width):
-            for y in range(self.__height):
-                if visited[x][y]:
-                    continue
-
-                motif = Motif(f"motif{motif_index}")
-                motif_index += 1
-                target_size = random.randint(min_size, max_size)
-
-                queue = [(x, y)]
-                while queue and motif.get_size() < target_size:
-                    idx = random.randint(0, len(queue) - 1)
-                    cx, cy = queue.pop(idx)
-                    if cx < 0 or cx >= self.__width or cy < 0 or cy >= self.__height:
-                        continue
-                    if visited[cx][cy]:
-                        continue
-
-                    visited[cx][cy] = True
-                    case = self.get_case(cx, cy)
-                    if case is None:
-                        case = Case(cx, cy, 0)
-                        self.__cases.append(case)
-                        self.__cases_by_pos[(cx, cy)] = case
-                    motif.add_case(case)
-
-                    neighbours = [(cx+1, cy), (cx-1, cy), (cx, cy+1), (cx, cy-1)]
-                    random.shuffle(neighbours)
-                    for nx, ny in neighbours:
-                        if 0 <= nx < self.__width and 0 <= ny < self.__height and not visited[nx][ny]:
-                            queue.append((nx, ny))
-
-                size = motif.get_size()
-                max_hint = min(size, 5)
-                for case in motif.get_cases():
-                    if max_hint > 0 and random.random() < hint_chance:
-                        val = random.randint(1, max_hint)
-                        case.set_value(val)
-                        case.set_hint(True)
-
-                self.__motifs.append(motif)
-
-    def load_json(self, file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.__cases_by_pos = {}
-        self.__cases = []
-        self.__motifs = []
-        max_x, max_y = 0, 0
-
-        for name, cells in data.items():
-            motif = Motif(name)
-            for cell in cells:
-                x, y, value = cell[0], cell[1], cell[2]
-                case = Case(x, y, value)
-                if value != 0:
-                    case.set_hint(True)
-                motif.add_case(case)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-                if x > max_x:
-                    max_x = x
-                if y > max_y:
-                    max_y = y
-            self.__motifs.append(motif)
-
-        self.__width = max_x + 1
-        self.__height = max_y + 1
-
-    def save_json(self, file_path):
-        data = {}
-        for motif in self.__motifs:
-            cells = []
-            for case in motif.get_cases():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
-            data[motif.get_name()] = cells
-
-        lines = []
-        for name, cells in data.items():
-            cells_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in cells)
-            lines.append(f'  "{name}": [{cells_str}]')
-
-        json_content = "{\n" + ",\n".join(lines) + "\n}"
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(json_content)
-
-    def to_dict(self):
-        data = {}
-        for motif in self.__motifs:
-            cells = []
-            for case in motif.get_cases():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
-            data[motif.get_name()] = cells
-        return data
-
-    def __str__(self):
-        lines = [f"Grille {self.__width} x {self.__height}:"]
-        for y in range(self.__height):
-            row = []
-            for x in range(self.__width):
-                case = self.get_case(x, y)
-                if case is None:
-                    row.append(".")
-                else:
-                    v = case.get_value()
-                    row.append(str(v) if v != 0 else "·")
-            lines.append(" ".join(row))
-        return "\n".join(lines)
-
-
-class Validator:
-    @staticmethod
-    def check_move(grid, x, y, value):
-        if not (1 <= value <= 5):
-            return False, "La valeur doit être entre 1 et 5."
-
-        motif = grid.get_motif_of(x, y)
-        if motif is None:
-            return False, "La case n'appartient à aucun motif."
-
-        motif_cells = motif.get_cases()
-        motif_size = len(motif_cells)
-
-        if value > motif_size:
-            return False, f"Motif de taille {motif_size}, valeur max autorisée : {motif_size}."
-
-        for cell in motif_cells:
-            if cell.get_x() == x and cell.get_y() == y:
-                continue
-            if cell.get_value() == value:
-                return False, f"La valeur {value} est déjà présente dans ce motif."
-
-        is_valid, message = Validator._check_neighbors(grid, x, y, value)
-        if not is_valid:
-            return False, message
-
-        return True, "Coup valide."
-
-    @staticmethod
-    def _check_neighbors(grid, x, y, value):
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if dx == 0 and dy == 0:
-                    continue
-                neighbor = grid.get_case(x + dx, y + dy)
-                if neighbor is not None and neighbor.get_value() == value:
-                    return False, f"La valeur {value} touche un voisin identique."
-        return True, ""
-
-    @staticmethod
-    def check_grid_complete(grid):
-        for cell in grid.get_cases():
-            if cell.get_value() == 0:
-                return False, "Grille incomplète."
-            is_valid, msg = Validator.check_move(grid, cell.get_x(), cell.get_y(), cell.get_value())
-            if not is_valid:
-                return False, f"Conflit en ({cell.get_x()},{cell.get_y()}): {msg}"
-        return True, "Grille parfaite !"
-
-
-class Solver:
-    @staticmethod
-    def solve(grid):
-        empty_cell = Solver.find_empty_cell(grid)
-        if empty_cell is None:
-            return True
-
-        x = empty_cell.get_x()
-        y = empty_cell.get_y()
-
-        for value in range(1, 6):
-            is_valid, _ = Validator.check_move(grid, x, y, value)
-            if is_valid:
-                empty_cell.set_value(value)
-                if Solver.solve(grid):
-                    return True
-                empty_cell.set_value(0)
-
-        return False
-
-    @staticmethod
-    def find_empty_cell(grid):
-        for case in grid.get_cases():
-            if case.get_value() == 0:
-                return case
-        return None
-
-    @staticmethod
-    def get_hint(grid):
-        original_values = {}
-        for case in grid.get_cases():
-            original_values[(case.get_x(), case.get_y())] = case.get_value()
-
-        if Solver.solve(grid):
-            for (x, y), orig_val in original_values.items():
-                if orig_val == 0:
-                    case = grid.get_case(x, y)
-                    hint_value = case.get_value()
-                    for (rx, ry), rv in original_values.items():
-                        grid.get_case(rx, ry).set_value(rv)
-                    return x, y, hint_value
-
-        for (x, y), v in original_values.items():
-            grid.get_case(x, y).set_value(v)
-        return None
 
 
 # == Vue ============================================================================================================= #
