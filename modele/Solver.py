@@ -1,18 +1,7 @@
 import random
-<<<<<<< Updated upstream
-try:
-    from modele.Grille import Grille
-    from modele.Case import Case
-    from modele.Validator import Validator
-except ImportError:
-    from Grille import Grille
-    from Case import Case
-    from Validator import Validator
-=======
 from Grille import Grille
 from Case import Case
 from Validator import Validator
->>>>>>> Stashed changes
 
 
 class Solver:
@@ -32,9 +21,12 @@ class Solver:
         x = empty_cell.get_x()
         y = empty_cell.get_y()
 
-        values = list(range(1, 6))  # ← NOUVEAU
-        random.shuffle(values)  # ← NOUVEAU
-        for value in values:  # ← MODIFIÉ
+        motif = grid.get_motif_of(x, y)
+        motif_size = motif.get_size() if motif else 5
+
+        values = list(range(1, motif_size + 1))
+        random.shuffle(values)
+        for value in values:
             is_valid, _ = Validator.check_move(grid, x, y, value)
 
             if is_valid:
@@ -51,40 +43,62 @@ class Solver:
     @staticmethod
     def find_empty_cell(grid):
         """
-        Retourne la première case vide (valeur 0) trouvée, ou None.
+        Trouve la case vide qui a le moins de valeurs possibles (MRV heuristic).
         """
+        best_case = None
+        min_options = 999
+        
         for case in grid.get_cases():
             if case.get_value() == 0:
-                return case
-        return None
+                x = case.get_x()
+                y = case.get_y()
+                motif = grid.get_motif_of(x, y)
+                motif_size = motif.get_size() if motif else 5
+                
+                valid_count = 0
+                for value in range(1, motif_size + 1):
+                    is_valid, _ = Validator.check_move(grid, x, y, value)
+                    if is_valid:
+                        valid_count += 1
+                
+                if valid_count < min_options:
+                    min_options = valid_count
+                    best_case = case
+                    if min_options == 0:
+                        return case
+        return best_case
 
-<<<<<<< Updated upstream
     @staticmethod
     def get_hint(grid):
         """
-        Donne un indice : résout la grille, retourne (x, y, value) pour
-        la première case vide, puis restaure la grille. Retourne None si
-        aucune solution n'existe.
+        Trouve une case vide dans la grille et retourne un indice sous la forme (x, y, value).
+        Retourne None si la grille est déjà résolue ou insoluble.
         """
-        original_values = {}
-        for case in grid.get_cases():
-            original_values[(case.get_x(), case.get_y())] = case.get_value()
+        import copy
+        # On copie la grille pour ne pas modifier l'originale lors de la résolution
+        grid_copy = copy.deepcopy(grid)
 
-        if Solver.solve(grid):
-            for (x, y), orig_val in original_values.items():
-                if orig_val == 0:
-                    case = grid.get_case(x, y)
-                    hint_value = case.get_value()
-                    for (rx, ry), rv in original_values.items():
-                        grid.get_case(rx, ry).set_value(rv)
-                    return x, y, hint_value
+        # On tente de résoudre la copie de la grille
+        if not Solver.solve(grid_copy):
+            return None
 
-        for (x, y), v in original_values.items():
-            grid.get_case(x, y).set_value(v)
+        # On cherche toutes les cases vides dans la grille originale
+        empty_cases = [c for c in grid.get_cases() if c.get_value() == 0]
+        if not empty_cases:
+            return None
+
+        # On en choisit une au hasard
+        target_case = random.choice(empty_cases)
+        x = target_case.get_x()
+        y = target_case.get_y()
+
+        # On récupère la valeur résolue correspondante
+        solved_case = grid_copy.get_case(x, y)
+        if solved_case:
+            return x, y, solved_case.get_value()
+
         return None
 
-=======
->>>>>>> Stashed changes
 
 """
 if __name__ == "__main__":

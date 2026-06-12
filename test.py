@@ -160,7 +160,6 @@ def test_backend_imports():
         "Motif": "modele.Motif",
         "Solver": "modele.Solver",
         "Validator": "modele.Validator",
-        "GridFiller": "modele.GridFiller",
         "LevelGenerator": "modele.LevelGenerator"
     }
 

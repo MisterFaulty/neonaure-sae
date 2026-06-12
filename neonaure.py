@@ -16,18 +16,11 @@ from modele.Motif import Motif
 from modele.Grille import Grille
 from modele.Validator import Validator
 from modele.Solver import Solver
+from modele.LevelGenerator import LevelGenerator
 
 import json
 import random
-<<<<<<< Updated upstream
-=======
-import os
-import os
-base_dir = os.path.dirname(os.path.abspath(__file__))
-modele_dir = os.path.join(base_dir, "modele")
-if modele_dir not in sys.path:
-    sys.path.insert(0, modele_dir)
->>>>>>> Stashed changes
+
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
@@ -35,51 +28,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
-from modele.Case import Case
-from modele.Motif import Motif
-from modele.Solver import Solver
-from modele.Validator import Validator
-from modele.GridFiller import GrideFiller
-from modele.LevelGenerator import LevelGenerator
+
 # == Classes ========================================================================================================== #
-
-<<<<<<< Updated upstream
-=======
-class Case:
-
-    def __init__(self, x, y, value=0):
-        self.__x = x
-        self.__y = y
-        self.__value = 0
-        self.__is_hint = False
-        self.set_value(value)
-
-    def get_x(self):
-        return self.__x
-
-    def get_y(self):
-        return self.__y
-
-    def get_value(self):
-        return self.__value
-
-    def is_hint(self):
-        return self.__is_hint
-
-    def set_hint(self, is_hint):
-        self.__is_hint = is_hint
-
-    def set_value(self, value):
-        if value < 0 or value > 5:
-            raise ValueError("La valeur doit être entre 0 et 5")
-        self.__value = value
-
-    def __str__(self):
-        return f"Case({self.__x},{self.__y},{self.__value})"
-
-
-
->>>>>>> Stashed changes
 
 # == Vue ============================================================================================================= #
 

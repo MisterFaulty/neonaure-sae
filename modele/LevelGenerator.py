@@ -8,14 +8,7 @@ Architecture MVC : fait partie du Modèle. Aucune dépendance à la Vue ou
 au Contrôleur.
 """
 import os
-<<<<<<< Updated upstream
-try:
-    from modele.Grille import Grille
-except ImportError:
-    from Grille import Grille
-=======
 from Grille import Grille
->>>>>>> Stashed changes
 
 
 class LevelGenerator:

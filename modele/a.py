@@ -1,17 +1,8 @@
 import json
 import os
 import random
-<<<<<<< Updated upstream
-try:
-    from modele.Case import Case
-    from modele.Motif import Motif
-except ImportError:
-    from Case import Case
-    from Motif import Motif
-=======
 from Case import Case
 from Motif import Motif
->>>>>>> Stashed changes
 
 class Grille:
     def __init__(self, width=8, height=8):

@@ -11,14 +11,6 @@ import json
 import os
 import sys
 
-<<<<<<< Updated upstream
-try:
-    from modele.Case import Case
-    from modele.Motif import Motif
-except ImportError:
-    from Case import Case
-    from Motif import Motif
-=======
 # Permettre les imports directs de Case et Motif quel que soit le dossier de lancement
 base_dir = os.path.dirname(os.path.abspath(__file__))
 if base_dir not in sys.path:
@@ -26,7 +18,6 @@ if base_dir not in sys.path:
 
 from Case import Case
 from Motif import Motif
->>>>>>> Stashed changes
 
 
 class Grille:
@@ -45,6 +36,7 @@ class Grille:
         self.__height = height
         self.__cases = []
         self.__cases_by_pos = {}
+        self.__motif_by_pos = {}
         self.__motifs = []
         self.__generate_empty()
 
@@ -76,11 +68,7 @@ class Grille:
 
     def get_motif_of(self, x, y):
         """Retourne le motif contenant la case (x, y), ou None."""
-        for motif in self.__motifs:
-            for case in motif.get_cases():
-                if case.get_x() == x and case.get_y() == y:
-                    return motif
-        return None
+        return self.__motif_by_pos.get((x, y))
 
     # --- Modifications ---
 
@@ -88,70 +76,12 @@ class Grille:
         """Ajoute un motif et s'assure que ses cases sont dans la grille."""
         self.__motifs.append(motif)
         for case in motif.get_cases():
+            self.__motif_by_pos[(case.get_x(), case.get_y())] = motif
             existing = self.get_case(case.get_x(), case.get_y())
             if existing is None:
                 self.__cases.append(case)
                 self.__cases_by_pos[(case.get_x(), case.get_y())] = case
 
-<<<<<<< Updated upstream
-    def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
-        """Génère aléatoirement des motifs couvrant toute la grille."""
-        import random
-        min_size = max(1, min(min_size, Motif.MAX_SIZE))
-        max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
-
-        self.__motifs = []
-        for case in self.__cases:
-            case.set_value(0)
-            case.set_hint(False)
-
-        visited = [[False] * self.__height for _ in range(self.__width)]
-        motif_index = 1
-
-        for x in range(self.__width):
-            for y in range(self.__height):
-                if visited[x][y]:
-                    continue
-
-                motif = Motif(f"motif{motif_index}")
-                motif_index += 1
-                target_size = random.randint(min_size, max_size)
-
-                queue = [(x, y)]
-                while queue and motif.get_size() < target_size:
-                    idx = random.randint(0, len(queue) - 1)
-                    cx, cy = queue.pop(idx)
-                    if cx < 0 or cx >= self.__width or cy < 0 or cy >= self.__height:
-                        continue
-                    if visited[cx][cy]:
-                        continue
-
-                    visited[cx][cy] = True
-                    case = self.get_case(cx, cy)
-                    if case is None:
-                        case = Case(cx, cy, 0)
-                        self.__cases.append(case)
-                        self.__cases_by_pos[(cx, cy)] = case
-                    motif.add_case(case)
-
-                    neighbours = [(cx+1, cy), (cx-1, cy), (cx, cy+1), (cx, cy-1)]
-                    random.shuffle(neighbours)
-                    for nx, ny in neighbours:
-                        if 0 <= nx < self.__width and 0 <= ny < self.__height and not visited[nx][ny]:
-                            queue.append((nx, ny))
-
-                size = motif.get_size()
-                max_hint = min(size, 5)
-                for case in motif.get_cases():
-                    if max_hint > 0 and random.random() < hint_chance:
-                        val = random.randint(1, max_hint)
-                        case.set_value(val)
-                        case.set_hint(True)
-
-                self.__motifs.append(motif)
-
-=======
->>>>>>> Stashed changes
     # --- Persistance JSON ---
 
     def _get_absolute_path(self, file_path):
@@ -175,6 +105,7 @@ class Grille:
 
         self.__cases = []
         self.__cases_by_pos = {}
+        self.__motif_by_pos = {}
         self.__motifs = []
         max_x, max_y = 0, 0
         for name, cells in data.items():
@@ -182,9 +113,12 @@ class Grille:
             for cell in cells:
                 x, y, value = cell[0], cell[1], cell[2]
                 case = Case(x, y, value)
+                if value > 0:
+                    case.set_hint(True)
                 motif.add_case(case)
                 self.__cases.append(case)
                 self.__cases_by_pos[(x, y)] = case
+                self.__motif_by_pos[(x, y)] = motif
                 if x > max_x:
                     max_x = x
                 if y > max_y:
@@ -232,8 +166,6 @@ class Grille:
             lines.append(" ".join(row))
         return "\n".join(lines)
 
-<<<<<<< Updated upstream
-=======
     def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
         import random
         for c in self.__cases: c.set_value(0)
@@ -255,46 +187,84 @@ class Grille:
                 if 0<=nx<self.__width and 0<=ny<self.__height and grid[nx][ny]==0: avail.append((nx, ny))
             dfs([(sx, sy)], avail)
             return shapes or [[(sx, sy)]]
-        def assign(s, vals, i=0, d=None):
-            if d is None: d = {}
-            if i == len(s): return d
-            x, y = s[i]
-            for v in vals:
-                if valid(x, y, v):
-                    grid[x][y] = v
-                    rv = vals.copy(); rv.remove(v)
-                    r = assign(s, rv, i+1, {**d, (x,y):v})
-                    if r: return r
-                    grid[x][y] = 0
-            return None
-        def gen():
-            empty = next(((x, y) for y in range(self.__height) for x in range(self.__width) if grid[x][y] == 0), None)
-            if not empty: return True
-            shapes = get_shapes(*empty)
-            random.shuffle(shapes)
-            for s in shapes:
-                vals = list(range(1, len(s)+1))
-                a = assign(s, vals)
-                if a:
-                    for x, y in s: grid[x][y] = a[(x,y)]
-                    self.__motifs.append(s)
-                    if gen(): return True
-                    for x, y in s: grid[x][y] = 0
-                    self.__motifs.pop()
-            return False
-        for _ in range(10):
-            self.__motifs = []; grid = [[0]*self.__height for _ in range(self.__width)]
-            if gen(): break
-        real_motifs = []
-        for i, s in enumerate(self.__motifs):
-            m = Motif(f"motif{i+1}")
-            for x, y in s:
-                c = self.get_case(x, y)
-                c.set_value(grid[x][y] if random.random() < hint_chance else 0)
-                m.add_case(c)
-            real_motifs.append(m)
-        self.__motifs = real_motifs
->>>>>>> Stashed changes
+        """Génère des motifs sur la grille.
+
+        Args:
+            min_size (int): Taille minimale d'un motif.
+            max_size (int): Taille maximale d'un motif.
+            hint_chance (float): Probabilité qu'une case ait une valeur.
+        """
+       
+        
+        visited = set()
+        motif_idx = 1
+
+        for y in range(self.__height):
+            for x in range(self.__width):
+                if (x, y) in visited:
+                    continue
+
+                motif_size = random.randint(min_size, max_size)
+                # Grow the motif up to the desired size
+                motif_cells = []
+
+                # Initialise le motif avec la case actuelle
+                motif = Motif(f"motif{motif_idx}")
+                motif.add_case(self.get_case(x, y))
+                visited.add((x, y))
+                motif_cells.append((x, y))
+
+                # Continue à ajouter des cases jusqu'à atteindre la taille désirée
+                while len(motif_cells) < motif_size:
+                    possible_neighbors = []
+                    for cell_x, cell_y in motif_cells:
+                        for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                            neighbor_x, neighbor_y = cell_x + dx, cell_y + dy
+
+                            # Vérifie si le voisin est dans les limites de la grille
+                            if 0 <= neighbor_x < self.__width and 0 <= neighbor_y < self.__height:
+                                # Vérifie si le voisin n'est pas déjà visité
+                                if (neighbor_x, neighbor_y) not in visited:
+                                    possible_neighbors.append((neighbor_x, neighbor_y))
+
+                    if not possible_neighbors:
+                        break
+
+                    # Choisi aléatoirement un voisin et l'ajoute au motif
+                    next_cell = random.choice(possible_neighbors)
+                    motif.add_case(self.get_case(next_cell[0], next_cell[1]))
+                    visited.add(next_cell)
+                    motif_cells.append(next_cell)
+
+                # On ajoute le motif à la grille
+                self.add_motif(motif)
+                motif_idx += 1  
+        
+        # Clear all values and solve the grid to get a valid full solution
+        for case in self.__cases:
+            case.set_value(0)
+            case.set_hint(False)
+
+        from Solver import Solver
+        if Solver.solve(self):
+            # Keep some cells as hints and clear the rest
+            for case in self.__cases:
+                if random.random() < hint_chance:
+                    case.set_hint(True)
+                else:
+                    case.set_value(0)
+        else:
+            # Fallback if solve fails
+            for case in self.__cases:
+                if random.random() < hint_chance:
+                    motif = self.get_motif_of(case.get_x(), case.get_y())
+                    max_val = motif.get_size() if motif else 5
+                    case.set_value(random.randint(1, min(max_val, 5)))
+                    case.set_hint(True)
+                else:
+                    case.set_value(0)
+
+        return self.__motifs
 
 # --- Tests ---
 if __name__ == "__main__":
