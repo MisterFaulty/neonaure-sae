@@ -12,7 +12,7 @@ import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QStackedWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
@@ -602,19 +602,86 @@ class GrilleWidget(QWidget):
     def check_victory(self):
         return Validator.check_grid_complete(self.grille)
 
-# == Fenetre ============================================================================================================= #
 
-class NeonaurWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Neonaure")
-        self.setMinimumSize(825, 550)
-        self.resize(825, 550)
+# == Page d'accueil =================================================================================================== #
 
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
+class StartPage(QWidget):
+    """Page d'entrée du jeu : titre + choix nouvelle grille / chargement."""
+
+    new_grid_requested = pyqtSignal()
+    load_grid_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background-color: {WHITE};")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(0)
+
+        layout.addStretch(2)
+
+        # titre
+        font_title = QFont("Arial", 64, QFont.Weight.Bold)
+        title = OutlinedLabel("NEONAURE")
+        title.outline_width = 5
+        title.setFont(font_title)
+        title.setFixedHeight(110)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        fm = QFontMetrics(font_title)
+        title_width = fm.horizontalAdvance("NEONAURE")
+
+        double_line = QFrame()
+        double_line.setFixedWidth(title_width)
+        double_line.setFixedHeight(16)
+        double_line.setStyleSheet(
+            f"border-top: 4px solid {CYAN}; border-bottom: 4px solid {CYAN}; background-color: transparent;"
+        )
+
+        line_row = QHBoxLayout()
+        line_row.addStretch()
+        line_row.addWidget(double_line)
+        line_row.addStretch()
+        layout.addLayout(line_row)
+
+        layout.addSpacerItem(QSpacerItem(0, 25, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # boutons
+        self.btn_new = QPushButton("nouvelle grille aléatoire")
+        self.btn_load = QPushButton("charger une grille")
+
+        for btn in (self.btn_new, self.btn_load):
+            btn.setFixedSize(320, 50)
+            btn.setStyleSheet(STYLE_ACTION_BTN)
+
+            row = QHBoxLayout()
+            row.addStretch()
+            row.addWidget(btn)
+            row.addStretch()
+            layout.addLayout(row)
+            layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        self.btn_new.clicked.connect(self.new_grid_requested.emit)
+        self.btn_load.clicked.connect(self.load_grid_requested.emit)
+
+        layout.addStretch(3)
+
+        # signature
+        lbl_credits = QLabel("Projet réalisé par Charly Deléglise, Selim Trilla et Younaïs Imamou")
+        lbl_credits.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_credits.setStyleSheet("font-size: 9px; color: #444; font-weight: 500;")
+        layout.addWidget(lbl_credits)
+
+
+# == Page de jeu ====================================================================================================== #
+
+class GamePage(QWidget):
+
+    back_to_menu = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
         self.grille = Grille(8, 8)
         self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
@@ -624,10 +691,7 @@ class NeonaurWindow(QMainWindow):
         self.grille_widget.case_selected.connect(self._on_case_selected)
 
     def _build_ui(self):
-        root = QWidget()
-        self.setCentralWidget(root)
-
-        main_layout = QVBoxLayout(root)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 15, 0, 15)
         main_layout.setSpacing(0)
 
@@ -702,10 +766,10 @@ class NeonaurWindow(QMainWindow):
         layout.addWidget(title_container)
         layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        # aase sélectionnée
+        # case sélectionnée
         layout.addWidget(self._cell_info())
 
-        # pavz numérique
+        # pavé numérique
         digit_container = QWidget()
         digit_layout = QHBoxLayout(digit_container)
         digit_layout.setContentsMargins(0, 0, 0, 0)
@@ -813,7 +877,8 @@ class NeonaurWindow(QMainWindow):
             ("sauvegarder la grille", self._on_save, 0, 1),
             ("résoudre la grille", self._on_solve, 1, 0),
             ("avoir un indice", self._on_hint, 1, 1),
-            ("nouvelle grille", self._on_new, 2, 0, 1, 2),
+            ("nouvelle grille", self._on_new, 2, 0),
+            ("menu principal", self._on_back_to_menu, 2, 1),
         ]
 
         for item in actions:
@@ -828,6 +893,26 @@ class NeonaurWindow(QMainWindow):
             grid.addWidget(btn, row, col, rowspan, colspan)
 
         return w
+
+    def new_grid(self):
+        """Génère une nouvelle grille aléatoire et l'affiche."""
+        self.grille = Grille(8, 8)
+        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
+        self.grille_widget.set_grille(self.grille)
+        self.lbl_cell.setText("Aucune")
+
+    def load_grid(self, file_path):
+        """Charge une grille depuis un fichier JSON. Retourne True en cas de succès."""
+        try:
+            grille = Grille()
+            grille.load_json(file_path)
+            self.grille = grille
+            self.grille_widget.set_grille(self.grille)
+            self.lbl_cell.setText("Aucune")
+            return True
+        except Exception as e:
+            QMessageBox.critical(self, "erreur", f"impossible de charger la grille :\n{e}")
+            return False
 
     def _on_case_selected(self, case_ihm):
         self._update_cell_info()
@@ -865,13 +950,8 @@ class NeonaurWindow(QMainWindow):
     def _on_load(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
         if file_path:
-            try:
-                self.grille = Grille()
-                self.grille.load_json(file_path)
-                self.grille_widget.set_grille(self.grille)
+            if self.load_grid(file_path):
                 QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
-            except Exception as e:
-                QMessageBox.critical(self, "erreur", f"impossible de charger la grille :\n{e}")
 
     def _on_save(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "sauvegarder la grille", "grille.json", "fichiers JSON (*.json);;tous les fichiers (*)")
@@ -907,11 +987,11 @@ class NeonaurWindow(QMainWindow):
         reply = QMessageBox.question(self, "nouvelle grille", "Voulez vous générer une nouvelle grille ? L'ancienne sera perdue si non sauvegardée",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            self.grille = Grille(8, 8)
-            self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
-            self.grille_widget.set_grille(self.grille)
-            self.lbl_cell.setText("Aucune")
+            self.new_grid()
             QMessageBox.information(self, "nouvelle grille", "nouvelle grille générée !")
+
+    def _on_back_to_menu(self):
+        self.back_to_menu.emit()
 
     def keyPressEvent(self, event):
         text = event.text()
@@ -923,6 +1003,55 @@ class NeonaurWindow(QMainWindow):
         elif event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_0):
             self.grille_widget.set_value(0)
             self._update_cell_info()
+
+
+# == Fenetre ============================================================================================================= #
+
+class NeonaurWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Neonaure")
+        self.setMinimumSize(825, 550)
+        self.resize(825, 550)
+
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+
+        self.stack = QStackedWidget()
+        self.setCentralWidget(self.stack)
+
+        self.start_page = StartPage()
+        self.game_page = GamePage()
+
+        self.stack.addWidget(self.start_page)
+        self.stack.addWidget(self.game_page)
+        self.stack.setCurrentWidget(self.start_page)
+
+        self.start_page.new_grid_requested.connect(self._on_new_grid)
+        self.start_page.load_grid_requested.connect(self._on_load_grid)
+        self.game_page.back_to_menu.connect(self._on_back_to_menu)
+
+    def _on_new_grid(self):
+        self.game_page.new_grid()
+        self.stack.setCurrentWidget(self.game_page)
+
+    def _on_load_grid(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
+        if file_path:
+            if self.game_page.load_grid(file_path):
+                QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
+                self.stack.setCurrentWidget(self.game_page)
+
+    def _on_back_to_menu(self):
+        self.stack.setCurrentWidget(self.start_page)
+
+    def keyPressEvent(self, event):
+        if self.stack.currentWidget() is self.game_page:
+            self.game_page.keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
 
 
 def main():
