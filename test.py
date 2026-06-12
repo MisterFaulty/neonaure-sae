@@ -5,6 +5,13 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+modele_dir = os.path.join(base_dir, "modele")
+if modele_dir not in sys.path:
+    sys.path.insert(0, modele_dir)
+
+
 class caseihm(QPushButton):
     def __init__(self, ligne, colonne, parent=None):
         super().__init__(parent)
@@ -145,7 +152,30 @@ class neonauresimplifie(QMainWindow):
             elif event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_0):
                 self.clavier_chiffre_clique(0)
 
+def test_backend_imports():
+    print("--- Test des imports du backend ---")
+    
+    modules = {
+        "Case": "modele.Case",
+        "Motif": "modele.Motif",
+        "Solver": "modele.Solver",
+        "Validator": "modele.Validator",
+        "GridFiller": "modele.GridFiller",
+        "LevelGenerator": "modele.LevelGenerator"
+    }
+
+    for nom, chemin in modules.items():
+        try:
+            mod = __import__(chemin, fromlist=[nom])
+            cls = getattr(mod, nom)
+            print(f"✅ {nom} importé avec succès depuis {chemin}")
+        except Exception as e:
+            print(f"❌ Erreur lors de l'import de {nom} : {e}")
+
+    print("-----------------------------------")
+
 if __name__ == "__main__":
+    test_backend_imports()
     app = QApplication(sys.argv)
     app.setStyle("fusion")
     fenetre = neonauresimplifie()

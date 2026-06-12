@@ -23,8 +23,22 @@ class Case:
 
         self.__x = x
         self.__y = y
+<<<<<<< Updated upstream
+        self.__is_hint = False
         self.set_value(value)
 
+    def is_hint(self):
+        """Retourne True si la case est un indice (non modifiable)."""
+        return self.__is_hint
+
+    def set_hint(self, is_hint):
+        """Définit si la case est un indice."""
+        self.__is_hint = is_hint
+
+=======
+        self.set_value(value)
+
+>>>>>>> Stashed changes
     """
     Creation des getters/setters pour x ,y et valeur
     

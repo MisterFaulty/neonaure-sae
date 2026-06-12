@@ -74,9 +74,20 @@ class Validator:
 
 
 if __name__ == "__main__":
+<<<<<<< Updated upstream
+    try:
+        from modele.Grille import Grille
+        from modele.Case import Case
+        from modele.Motif import Motif
+    except ImportError:
+        from Grille import Grille
+        from Case import Case
+        from Motif import Motif
+=======
     from Grille import Grille
     from Case import Case
     from Motif import Motif
+>>>>>>> Stashed changes
 
     print("--- Running Validator Tests ---")
 

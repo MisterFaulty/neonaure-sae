@@ -11,6 +11,14 @@ import json
 import os
 import sys
 
+<<<<<<< Updated upstream
+try:
+    from modele.Case import Case
+    from modele.Motif import Motif
+except ImportError:
+    from Case import Case
+    from Motif import Motif
+=======
 # Permettre les imports directs de Case et Motif quel que soit le dossier de lancement
 base_dir = os.path.dirname(os.path.abspath(__file__))
 if base_dir not in sys.path:
@@ -18,6 +26,7 @@ if base_dir not in sys.path:
 
 from Case import Case
 from Motif import Motif
+>>>>>>> Stashed changes
 
 
 class Grille:
@@ -84,6 +93,65 @@ class Grille:
                 self.__cases.append(case)
                 self.__cases_by_pos[(case.get_x(), case.get_y())] = case
 
+<<<<<<< Updated upstream
+    def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
+        """Génère aléatoirement des motifs couvrant toute la grille."""
+        import random
+        min_size = max(1, min(min_size, Motif.MAX_SIZE))
+        max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
+
+        self.__motifs = []
+        for case in self.__cases:
+            case.set_value(0)
+            case.set_hint(False)
+
+        visited = [[False] * self.__height for _ in range(self.__width)]
+        motif_index = 1
+
+        for x in range(self.__width):
+            for y in range(self.__height):
+                if visited[x][y]:
+                    continue
+
+                motif = Motif(f"motif{motif_index}")
+                motif_index += 1
+                target_size = random.randint(min_size, max_size)
+
+                queue = [(x, y)]
+                while queue and motif.get_size() < target_size:
+                    idx = random.randint(0, len(queue) - 1)
+                    cx, cy = queue.pop(idx)
+                    if cx < 0 or cx >= self.__width or cy < 0 or cy >= self.__height:
+                        continue
+                    if visited[cx][cy]:
+                        continue
+
+                    visited[cx][cy] = True
+                    case = self.get_case(cx, cy)
+                    if case is None:
+                        case = Case(cx, cy, 0)
+                        self.__cases.append(case)
+                        self.__cases_by_pos[(cx, cy)] = case
+                    motif.add_case(case)
+
+                    neighbours = [(cx+1, cy), (cx-1, cy), (cx, cy+1), (cx, cy-1)]
+                    random.shuffle(neighbours)
+                    for nx, ny in neighbours:
+                        if 0 <= nx < self.__width and 0 <= ny < self.__height and not visited[nx][ny]:
+                            queue.append((nx, ny))
+
+                size = motif.get_size()
+                max_hint = min(size, 5)
+                for case in motif.get_cases():
+                    if max_hint > 0 and random.random() < hint_chance:
+                        val = random.randint(1, max_hint)
+                        case.set_value(val)
+                        case.set_hint(True)
+
+                self.__motifs.append(motif)
+
+=======
+>>>>>>> Stashed changes
     # --- Persistance JSON ---
 
     def _get_absolute_path(self, file_path):
@@ -164,6 +232,69 @@ class Grille:
             lines.append(" ".join(row))
         return "\n".join(lines)
 
+<<<<<<< Updated upstream
+=======
+    def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
+        import random
+        for c in self.__cases: c.set_value(0)
+        grid = [[0]*self.__height for _ in range(self.__width)]
+        def valid(x, y, v): return not any(grid[nx][ny]==v for nx in range(max(0, x-1), min(self.__width, x+2)) for ny in range(max(0, y-1), min(self.__height, y+2)) if nx!=x or ny!=y)
+        def get_shapes(sx, sy):
+            shapes = []
+            def dfs(s, avail):
+                if min_size <= len(s) <= max_size: shapes.append(s)
+                if len(s) == max_size: return
+                for nx, ny in avail:
+                    if (nx, ny) not in s and grid[nx][ny] == 0:
+                        navail = avail.copy(); navail.remove((nx, ny))
+                        for nnx, nny in [(nx+1,ny), (nx-1,ny), (nx,ny+1), (nx,ny-1)]:
+                            if 0<=nnx<self.__width and 0<=nny<self.__height and grid[nnx][nny]==0 and (nnx, nny) not in s and (nnx, nny) not in navail: navail.append((nnx, nny))
+                        dfs(s + [(nx, ny)], navail)
+            avail = []
+            for nx, ny in [(sx+1,sy), (sx-1,sy), (sx,sy+1), (sx,sy-1)]:
+                if 0<=nx<self.__width and 0<=ny<self.__height and grid[nx][ny]==0: avail.append((nx, ny))
+            dfs([(sx, sy)], avail)
+            return shapes or [[(sx, sy)]]
+        def assign(s, vals, i=0, d=None):
+            if d is None: d = {}
+            if i == len(s): return d
+            x, y = s[i]
+            for v in vals:
+                if valid(x, y, v):
+                    grid[x][y] = v
+                    rv = vals.copy(); rv.remove(v)
+                    r = assign(s, rv, i+1, {**d, (x,y):v})
+                    if r: return r
+                    grid[x][y] = 0
+            return None
+        def gen():
+            empty = next(((x, y) for y in range(self.__height) for x in range(self.__width) if grid[x][y] == 0), None)
+            if not empty: return True
+            shapes = get_shapes(*empty)
+            random.shuffle(shapes)
+            for s in shapes:
+                vals = list(range(1, len(s)+1))
+                a = assign(s, vals)
+                if a:
+                    for x, y in s: grid[x][y] = a[(x,y)]
+                    self.__motifs.append(s)
+                    if gen(): return True
+                    for x, y in s: grid[x][y] = 0
+                    self.__motifs.pop()
+            return False
+        for _ in range(10):
+            self.__motifs = []; grid = [[0]*self.__height for _ in range(self.__width)]
+            if gen(): break
+        real_motifs = []
+        for i, s in enumerate(self.__motifs):
+            m = Motif(f"motif{i+1}")
+            for x, y in s:
+                c = self.get_case(x, y)
+                c.set_value(grid[x][y] if random.random() < hint_chance else 0)
+                m.add_case(c)
+            real_motifs.append(m)
+        self.__motifs = real_motifs
+>>>>>>> Stashed changes
 
 # --- Tests ---
 if __name__ == "__main__":

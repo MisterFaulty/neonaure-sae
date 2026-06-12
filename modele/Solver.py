@@ -1,7 +1,18 @@
 import random
+<<<<<<< Updated upstream
+try:
+    from modele.Grille import Grille
+    from modele.Case import Case
+    from modele.Validator import Validator
+except ImportError:
+    from Grille import Grille
+    from Case import Case
+    from Validator import Validator
+=======
 from Grille import Grille
 from Case import Case
 from Validator import Validator
+>>>>>>> Stashed changes
 
 
 class Solver:
@@ -47,6 +58,33 @@ class Solver:
                 return case
         return None
 
+<<<<<<< Updated upstream
+    @staticmethod
+    def get_hint(grid):
+        """
+        Donne un indice : résout la grille, retourne (x, y, value) pour
+        la première case vide, puis restaure la grille. Retourne None si
+        aucune solution n'existe.
+        """
+        original_values = {}
+        for case in grid.get_cases():
+            original_values[(case.get_x(), case.get_y())] = case.get_value()
+
+        if Solver.solve(grid):
+            for (x, y), orig_val in original_values.items():
+                if orig_val == 0:
+                    case = grid.get_case(x, y)
+                    hint_value = case.get_value()
+                    for (rx, ry), rv in original_values.items():
+                        grid.get_case(rx, ry).set_value(rv)
+                    return x, y, hint_value
+
+        for (x, y), v in original_values.items():
+            grid.get_case(x, y).set_value(v)
+        return None
+
+=======
+>>>>>>> Stashed changes
 
 """
 if __name__ == "__main__":

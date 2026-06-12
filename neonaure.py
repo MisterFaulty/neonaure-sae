@@ -11,96 +11,23 @@ modele_dir = os.path.join(base_dir, 'modele')
 if modele_dir not in sys.path:
     sys.path.insert(0, modele_dir)
 
-# ── Étape 1 : charger Case et le patcher AVANT Grille ────────────────────────
-import modele.Case as _cm
-
-_OrigCase = _cm.Case
-
-class Case(_OrigCase):
-    def __init__(self, x, y, value=0):
-        self._is_hint = False
-        super().__init__(x, y, value)
-    def is_hint(self):
-        return getattr(self, '_is_hint', False)
-    def set_hint(self, v):
-        self._is_hint = v
-
-# Injecter la classe patchée dans tous les points d'import possibles
-_cm.Case = Case
-sys.modules['modele.Case'] = _cm
-sys.modules['Case'] = _cm           # Grille.py fait "from Case import Case"
-
-# ── Étape 2 : importer le reste du modèle ────────────────────────────────────
+from modele.Case import Case
 from modele.Motif import Motif
 from modele.Grille import Grille
 from modele.Validator import Validator
 from modele.Solver import Solver
 
-# ── Patch Grille : ajouter generate_motifs ────────────────────────────────────
-def _generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
-    import random as _r
-    min_size = max(1, min(min_size, Motif.MAX_SIZE))
-    max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
-
-    self._Grille__motifs = []
-    for c in self._Grille__cases:
-        c.set_value(0)
-        if hasattr(c, 'set_hint'):
-            c.set_hint(False)
-
-    visited = [[False] * self._Grille__height for _ in range(self._Grille__width)]
-    idx = 1
-    for x in range(self._Grille__width):
-        for y in range(self._Grille__height):
-            if visited[x][y]:
-                continue
-            motif = Motif(f"motif{idx}"); idx += 1
-            target = _r.randint(min_size, max_size)
-            queue = [(x, y)]
-            while queue and motif.get_size() < target:
-                i = _r.randint(0, len(queue) - 1)
-                cx, cy = queue.pop(i)
-                if not (0 <= cx < self._Grille__width and 0 <= cy < self._Grille__height):
-                    continue
-                if visited[cx][cy]:
-                    continue
-                visited[cx][cy] = True
-                cell = self.get_case(cx, cy)
-                if cell is None:
-                    cell = Case(cx, cy, 0)
-                    self._Grille__cases.append(cell)
-                    self._Grille__cases_by_pos[(cx, cy)] = cell
-                motif.add_case(cell)
-                for nx, ny in [(cx+1,cy),(cx-1,cy),(cx,cy+1),(cx,cy-1)]:
-                    if 0 <= nx < self._Grille__width and 0 <= ny < self._Grille__height and not visited[nx][ny]:
-                        queue.append((nx, ny))
-            sz = motif.get_size()
-            for cell in motif.get_cases():
-                if sz > 0 and _r.random() < hint_chance:
-                    cell.set_value(_r.randint(1, min(sz, 5)))
-                    if hasattr(cell, 'set_hint'):
-                        cell.set_hint(True)
-            self._Grille__motifs.append(motif)
-
-Grille.generate_motifs = _generate_motifs
-
-# ── Patch Solver : ajouter get_hint ───────────────────────────────────────────
-def _get_hint(grid):
-    original = {(c.get_x(), c.get_y()): c.get_value() for c in grid.get_cases()}
-    if Solver.solve(grid):
-        for (x, y), orig in original.items():
-            if orig == 0:
-                val = grid.get_case(x, y).get_value()
-                for (rx, ry), rv in original.items():
-                    grid.get_case(rx, ry).set_value(rv)
-                return x, y, val
-    for (x, y), v in original.items():
-        grid.get_case(x, y).set_value(v)
-    return None
-
-Solver.get_hint = _get_hint
 import json
 import random
+<<<<<<< Updated upstream
+=======
+import os
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+modele_dir = os.path.join(base_dir, "modele")
+if modele_dir not in sys.path:
+    sys.path.insert(0, modele_dir)
+>>>>>>> Stashed changes
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
@@ -108,7 +35,51 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
+from modele.Case import Case
+from modele.Motif import Motif
+from modele.Solver import Solver
+from modele.Validator import Validator
+from modele.GridFiller import GrideFiller
+from modele.LevelGenerator import LevelGenerator
+# == Classes ========================================================================================================== #
 
+<<<<<<< Updated upstream
+=======
+class Case:
+
+    def __init__(self, x, y, value=0):
+        self.__x = x
+        self.__y = y
+        self.__value = 0
+        self.__is_hint = False
+        self.set_value(value)
+
+    def get_x(self):
+        return self.__x
+
+    def get_y(self):
+        return self.__y
+
+    def get_value(self):
+        return self.__value
+
+    def is_hint(self):
+        return self.__is_hint
+
+    def set_hint(self, is_hint):
+        self.__is_hint = is_hint
+
+    def set_value(self, value):
+        if value < 0 or value > 5:
+            raise ValueError("La valeur doit être entre 0 et 5")
+        self.__value = value
+
+    def __str__(self):
+        return f"Case({self.__x},{self.__y},{self.__value})"
+
+
+
+>>>>>>> Stashed changes
 
 # == Vue ============================================================================================================= #
 
