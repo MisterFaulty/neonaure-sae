@@ -11,5 +11,3 @@ with open("grille_auto.json", "w") as f:
 nom_fichier = "grille_sudoku.json"
 with open(nom_fichier, 'w', encoding='utf-8') as fichier_json:
     print(f" La grille a été exportée dans le fichier : {nom_fichier}")
-
-    
