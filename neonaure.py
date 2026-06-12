@@ -4,356 +4,30 @@
 # le générateur de grille et le solver ont quelques problèmes
 # fichier """final""" à revoir côté algo
 # --------------------------------------------------------------------------------------------------------------- #
-
 import sys
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+modele_dir = os.path.join(base_dir, 'modele')
+if modele_dir not in sys.path:
+    sys.path.insert(0, modele_dir)
+
+from modele.Case import Case
+from modele.Motif import Motif
+from modele.Grille import Grille
+from modele.Validator import Validator
+from modele.Solver import Solver
+
 import json
 import random
-import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
-    QFileDialog, QMessageBox
+    QFileDialog, QMessageBox, QStackedWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
 
 # == Classes ========================================================================================================== #
-
-class Case:
-
-    def __init__(self, x, y, value=0):
-        self.__x = x
-        self.__y = y
-        self.__value = 0
-        self.__is_hint = False
-        self.set_value(value)
-
-    def get_x(self):
-        return self.__x
-
-    def get_y(self):
-        return self.__y
-
-    def get_value(self):
-        return self.__value
-
-    def is_hint(self):
-        return self.__is_hint
-
-    def set_hint(self, is_hint):
-        self.__is_hint = is_hint
-
-    def set_value(self, value):
-        if value < 0 or value > 5:
-            raise ValueError("La valeur doit être entre 0 et 5")
-        self.__value = value
-
-    def __str__(self):
-        return f"Case({self.__x},{self.__y},{self.__value})"
-
-
-class Motif:
-    MAX_SIZE = 5
-
-    def __init__(self, name):
-        self.__name = name
-        self.__cases = []
-
-    def get_name(self):
-        return self.__name
-
-    def get_cases(self):
-        return self.__cases
-
-    def get_size(self):
-        return len(self.__cases)
-
-    def add_case(self, case):
-        if self.get_size() >= Motif.MAX_SIZE:
-            raise ValueError(f"Un motif ne peut pas dépasser {Motif.MAX_SIZE} cases")
-        self.__cases.append(case)
-
-    def contains(self, x, y):
-        for case in self.__cases:
-            if case.get_x() == x and case.get_y() == y:
-                return True
-        return False
-
-    def contains_value(self, value):
-        for case in self.__cases:
-            if case.get_value() == value:
-                return True
-        return False
-
-    def __str__(self):
-        cases_str = ", ".join(str(c) for c in self.__cases)
-        return f"Motif({self.__name}, {self.get_size()} cases): [{cases_str}]"
-
-
-class Grille:
-    def __init__(self, width=8, height=8):
-        self.__height = height
-        self.__width = width
-        self.__cases_by_pos = {}
-        self.__cases = []
-        self.__motifs = []
-        self.__generate_empty()
-
-    def __generate_empty(self):
-        for y in range(self.__height):
-            for x in range(self.__width):
-                case = Case(x, y, 0)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-
-    def get_width(self):
-        return self.__width
-
-    def get_height(self):
-        return self.__height
-
-    def get_cases(self):
-        return self.__cases
-
-    def get_motifs(self):
-        return self.__motifs
-
-    def get_case(self, x, y):
-        return self.__cases_by_pos.get((x, y))
-
-    def get_motif_of(self, x, y):
-        for motif in self.__motifs:
-            if motif.contains(x, y):
-                return motif
-        return None
-
-    def add_motif(self, motif):
-        self.__motifs.append(motif)
-        for case in motif.get_cases():
-            existing = self.get_case(case.get_x(), case.get_y())
-            if existing is None:
-                self.__cases.append(case)
-                self.__cases_by_pos[(case.get_x(), case.get_y())] = case
-
-    def generate_motifs(self, min_size=2, max_size=5, hint_chance=0.25):
-        min_size = max(1, min(min_size, Motif.MAX_SIZE))
-        max_size = max(min_size, min(max_size, Motif.MAX_SIZE))
-
-        self.__motifs = []
-        for case in self.__cases:
-            case.set_value(0)
-            case.set_hint(False)
-
-        visited = [[False] * self.__height for _ in range(self.__width)]
-        motif_index = 1
-
-        for x in range(self.__width):
-            for y in range(self.__height):
-                if visited[x][y]:
-                    continue
-
-                motif = Motif(f"motif{motif_index}")
-                motif_index += 1
-                target_size = random.randint(min_size, max_size)
-
-                queue = [(x, y)]
-                while queue and motif.get_size() < target_size:
-                    idx = random.randint(0, len(queue) - 1)
-                    cx, cy = queue.pop(idx)
-                    if cx < 0 or cx >= self.__width or cy < 0 or cy >= self.__height:
-                        continue
-                    if visited[cx][cy]:
-                        continue
-
-                    visited[cx][cy] = True
-                    case = self.get_case(cx, cy)
-                    if case is None:
-                        case = Case(cx, cy, 0)
-                        self.__cases.append(case)
-                        self.__cases_by_pos[(cx, cy)] = case
-                    motif.add_case(case)
-
-                    neighbours = [(cx+1, cy), (cx-1, cy), (cx, cy+1), (cx, cy-1)]
-                    random.shuffle(neighbours)
-                    for nx, ny in neighbours:
-                        if 0 <= nx < self.__width and 0 <= ny < self.__height and not visited[nx][ny]:
-                            queue.append((nx, ny))
-
-                size = motif.get_size()
-                max_hint = min(size, 5)
-                for case in motif.get_cases():
-                    if max_hint > 0 and random.random() < hint_chance:
-                        val = random.randint(1, max_hint)
-                        case.set_value(val)
-                        case.set_hint(True)
-
-                self.__motifs.append(motif)
-
-    def load_json(self, file_path):
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.__cases_by_pos = {}
-        self.__cases = []
-        self.__motifs = []
-        max_x, max_y = 0, 0
-
-        for name, cells in data.items():
-            motif = Motif(name)
-            for cell in cells:
-                x, y, value = cell[0], cell[1], cell[2]
-                case = Case(x, y, value)
-                if value != 0:
-                    case.set_hint(True)
-                motif.add_case(case)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-                if x > max_x:
-                    max_x = x
-                if y > max_y:
-                    max_y = y
-            self.__motifs.append(motif)
-
-        self.__width = max_x + 1
-        self.__height = max_y + 1
-
-    def save_json(self, file_path):
-        data = {}
-        for motif in self.__motifs:
-            cells = []
-            for case in motif.get_cases():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
-            data[motif.get_name()] = cells
-
-        lines = []
-        for name, cells in data.items():
-            cells_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in cells)
-            lines.append(f'  "{name}": [{cells_str}]')
-
-        json_content = "{\n" + ",\n".join(lines) + "\n}"
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(json_content)
-
-    def to_dict(self):
-        data = {}
-        for motif in self.__motifs:
-            cells = []
-            for case in motif.get_cases():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
-            data[motif.get_name()] = cells
-        return data
-
-    def __str__(self):
-        lines = [f"Grille {self.__width} x {self.__height}:"]
-        for y in range(self.__height):
-            row = []
-            for x in range(self.__width):
-                case = self.get_case(x, y)
-                if case is None:
-                    row.append(".")
-                else:
-                    v = case.get_value()
-                    row.append(str(v) if v != 0 else "·")
-            lines.append(" ".join(row))
-        return "\n".join(lines)
-
-
-class Validator:
-    @staticmethod
-    def check_move(grid, x, y, value):
-        if not (1 <= value <= 5):
-            return False, "La valeur doit être entre 1 et 5."
-
-        motif = grid.get_motif_of(x, y)
-        if motif is None:
-            return False, "La case n'appartient à aucun motif."
-
-        motif_cells = motif.get_cases()
-        motif_size = len(motif_cells)
-
-        if value > motif_size:
-            return False, f"Motif de taille {motif_size}, valeur max autorisée : {motif_size}."
-
-        for cell in motif_cells:
-            if cell.get_x() == x and cell.get_y() == y:
-                continue
-            if cell.get_value() == value:
-                return False, f"La valeur {value} est déjà présente dans ce motif."
-
-        is_valid, message = Validator._check_neighbors(grid, x, y, value)
-        if not is_valid:
-            return False, message
-
-        return True, "Coup valide."
-
-    @staticmethod
-    def _check_neighbors(grid, x, y, value):
-        for dx in [-1, 0, 1]:
-            for dy in [-1, 0, 1]:
-                if dx == 0 and dy == 0:
-                    continue
-                neighbor = grid.get_case(x + dx, y + dy)
-                if neighbor is not None and neighbor.get_value() == value:
-                    return False, f"La valeur {value} touche un voisin identique."
-        return True, ""
-
-    @staticmethod
-    def check_grid_complete(grid):
-        for cell in grid.get_cases():
-            if cell.get_value() == 0:
-                return False, "Grille incomplète."
-            is_valid, msg = Validator.check_move(grid, cell.get_x(), cell.get_y(), cell.get_value())
-            if not is_valid:
-                return False, f"Conflit en ({cell.get_x()},{cell.get_y()}): {msg}"
-        return True, "Grille parfaite !"
-
-
-class Solver:
-    @staticmethod
-    def solve(grid):
-        empty_cell = Solver.find_empty_cell(grid)
-        if empty_cell is None:
-            return True
-
-        x = empty_cell.get_x()
-        y = empty_cell.get_y()
-
-        for value in range(1, 6):
-            is_valid, _ = Validator.check_move(grid, x, y, value)
-            if is_valid:
-                empty_cell.set_value(value)
-                if Solver.solve(grid):
-                    return True
-                empty_cell.set_value(0)
-
-        return False
-
-    @staticmethod
-    def find_empty_cell(grid):
-        for case in grid.get_cases():
-            if case.get_value() == 0:
-                return case
-        return None
-
-    @staticmethod
-    def get_hint(grid):
-        original_values = {}
-        for case in grid.get_cases():
-            original_values[(case.get_x(), case.get_y())] = case.get_value()
-
-        if Solver.solve(grid):
-            for (x, y), orig_val in original_values.items():
-                if orig_val == 0:
-                    case = grid.get_case(x, y)
-                    hint_value = case.get_value()
-                    for (rx, ry), rv in original_values.items():
-                        grid.get_case(rx, ry).set_value(rv)
-                    return x, y, hint_value
-
-        for (x, y), v in original_values.items():
-            grid.get_case(x, y).set_value(v)
-        return None
 
 
 # == Vue ============================================================================================================= #
@@ -602,19 +276,86 @@ class GrilleWidget(QWidget):
     def check_victory(self):
         return Validator.check_grid_complete(self.grille)
 
-# == Fenetre ============================================================================================================= #
 
-class NeonaurWindow(QMainWindow):
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Neonaure")
-        self.setMinimumSize(825, 550)
-        self.resize(825, 550)
+# == Page d'accueil =================================================================================================== #
 
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
+class StartPage(QWidget):
+    """Page d'entrée du jeu : titre + choix nouvelle grille / chargement."""
+
+    new_grid_requested = pyqtSignal()
+    load_grid_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background-color: {WHITE};")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(0)
+
+        layout.addStretch(2)
+
+        # titre
+        font_title = QFont("Arial", 64, QFont.Weight.Bold)
+        title = OutlinedLabel("NEONAURE")
+        title.outline_width = 5
+        title.setFont(font_title)
+        title.setFixedHeight(110)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        fm = QFontMetrics(font_title)
+        title_width = fm.horizontalAdvance("NEONAURE")
+
+        double_line = QFrame()
+        double_line.setFixedWidth(title_width)
+        double_line.setFixedHeight(16)
+        double_line.setStyleSheet(
+            f"border-top: 4px solid {CYAN}; border-bottom: 4px solid {CYAN}; background-color: transparent;"
+        )
+
+        line_row = QHBoxLayout()
+        line_row.addStretch()
+        line_row.addWidget(double_line)
+        line_row.addStretch()
+        layout.addLayout(line_row)
+
+        layout.addSpacerItem(QSpacerItem(0, 25, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # boutons
+        self.btn_new = QPushButton("nouvelle grille aléatoire")
+        self.btn_load = QPushButton("charger une grille")
+
+        for btn in (self.btn_new, self.btn_load):
+            btn.setFixedSize(320, 50)
+            btn.setStyleSheet(STYLE_ACTION_BTN)
+
+            row = QHBoxLayout()
+            row.addStretch()
+            row.addWidget(btn)
+            row.addStretch()
+            layout.addLayout(row)
+            layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        self.btn_new.clicked.connect(self.new_grid_requested.emit)
+        self.btn_load.clicked.connect(self.load_grid_requested.emit)
+
+        layout.addStretch(3)
+
+        # signature
+        lbl_credits = QLabel("Projet réalisé par Charly Deléglise, Selim Trilla et Younaïs Imamou")
+        lbl_credits.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_credits.setStyleSheet("font-size: 9px; color: #444; font-weight: 500;")
+        layout.addWidget(lbl_credits)
+
+
+# == Page de jeu ====================================================================================================== #
+
+class GamePage(QWidget):
+
+    back_to_menu = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
 
         self.grille = Grille(8, 8)
         self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
@@ -624,10 +365,7 @@ class NeonaurWindow(QMainWindow):
         self.grille_widget.case_selected.connect(self._on_case_selected)
 
     def _build_ui(self):
-        root = QWidget()
-        self.setCentralWidget(root)
-
-        main_layout = QVBoxLayout(root)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 15, 0, 15)
         main_layout.setSpacing(0)
 
@@ -702,10 +440,10 @@ class NeonaurWindow(QMainWindow):
         layout.addWidget(title_container)
         layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        # aase sélectionnée
+        # case sélectionnée
         layout.addWidget(self._cell_info())
 
-        # pavz numérique
+        # pavé numérique
         digit_container = QWidget()
         digit_layout = QHBoxLayout(digit_container)
         digit_layout.setContentsMargins(0, 0, 0, 0)
@@ -813,7 +551,8 @@ class NeonaurWindow(QMainWindow):
             ("sauvegarder la grille", self._on_save, 0, 1),
             ("résoudre la grille", self._on_solve, 1, 0),
             ("avoir un indice", self._on_hint, 1, 1),
-            ("nouvelle grille", self._on_new, 2, 0, 1, 2),
+            ("nouvelle grille", self._on_new, 2, 0),
+            ("menu principal", self._on_back_to_menu, 2, 1),
         ]
 
         for item in actions:
@@ -828,6 +567,26 @@ class NeonaurWindow(QMainWindow):
             grid.addWidget(btn, row, col, rowspan, colspan)
 
         return w
+
+    def new_grid(self):
+        """Génère une nouvelle grille aléatoire et l'affiche."""
+        self.grille = Grille(8, 8)
+        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
+        self.grille_widget.set_grille(self.grille)
+        self.lbl_cell.setText("Aucune")
+
+    def load_grid(self, file_path):
+        """Charge une grille depuis un fichier JSON. Retourne True en cas de succès."""
+        try:
+            grille = Grille()
+            grille.load_json(file_path)
+            self.grille = grille
+            self.grille_widget.set_grille(self.grille)
+            self.lbl_cell.setText("Aucune")
+            return True
+        except Exception as e:
+            QMessageBox.critical(self, "erreur", f"impossible de charger la grille :\n{e}")
+            return False
 
     def _on_case_selected(self, case_ihm):
         self._update_cell_info()
@@ -865,13 +624,8 @@ class NeonaurWindow(QMainWindow):
     def _on_load(self):
         file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
         if file_path:
-            try:
-                self.grille = Grille()
-                self.grille.load_json(file_path)
-                self.grille_widget.set_grille(self.grille)
+            if self.load_grid(file_path):
                 QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
-            except Exception as e:
-                QMessageBox.critical(self, "erreur", f"impossible de charger la grille :\n{e}")
 
     def _on_save(self):
         file_path, _ = QFileDialog.getSaveFileName(self, "sauvegarder la grille", "grille.json", "fichiers JSON (*.json);;tous les fichiers (*)")
@@ -907,11 +661,11 @@ class NeonaurWindow(QMainWindow):
         reply = QMessageBox.question(self, "nouvelle grille", "Voulez vous générer une nouvelle grille ? L'ancienne sera perdue si non sauvegardée",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
-            self.grille = Grille(8, 8)
-            self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
-            self.grille_widget.set_grille(self.grille)
-            self.lbl_cell.setText("Aucune")
+            self.new_grid()
             QMessageBox.information(self, "nouvelle grille", "nouvelle grille générée !")
+
+    def _on_back_to_menu(self):
+        self.back_to_menu.emit()
 
     def keyPressEvent(self, event):
         text = event.text()
@@ -923,6 +677,55 @@ class NeonaurWindow(QMainWindow):
         elif event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_0):
             self.grille_widget.set_value(0)
             self._update_cell_info()
+
+
+# == Fenetre ============================================================================================================= #
+
+class NeonaurWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Neonaure")
+        self.setMinimumSize(825, 550)
+        self.resize(825, 550)
+
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+
+        self.stack = QStackedWidget()
+        self.setCentralWidget(self.stack)
+
+        self.start_page = StartPage()
+        self.game_page = GamePage()
+
+        self.stack.addWidget(self.start_page)
+        self.stack.addWidget(self.game_page)
+        self.stack.setCurrentWidget(self.start_page)
+
+        self.start_page.new_grid_requested.connect(self._on_new_grid)
+        self.start_page.load_grid_requested.connect(self._on_load_grid)
+        self.game_page.back_to_menu.connect(self._on_back_to_menu)
+
+    def _on_new_grid(self):
+        self.game_page.new_grid()
+        self.stack.setCurrentWidget(self.game_page)
+
+    def _on_load_grid(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
+        if file_path:
+            if self.game_page.load_grid(file_path):
+                QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
+                self.stack.setCurrentWidget(self.game_page)
+
+    def _on_back_to_menu(self):
+        self.stack.setCurrentWidget(self.start_page)
+
+    def keyPressEvent(self, event):
+        if self.stack.currentWidget() is self.game_page:
+            self.game_page.keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
 
 
 def main():
