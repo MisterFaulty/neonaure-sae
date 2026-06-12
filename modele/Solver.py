@@ -1,3 +1,4 @@
+import random
 from Grille import Grille
 from Case import Case
 from Validator import Validator
@@ -20,7 +21,9 @@ class Solver:
         x = empty_cell.get_x()
         y = empty_cell.get_y()
 
-        for value in range(1, 6):
+        values = list(range(1, 6))  # ← NOUVEAU
+        random.shuffle(values)  # ← NOUVEAU
+        for value in values:  # ← MODIFIÉ
             is_valid, _ = Validator.check_move(grid, x, y, value)
 
             if is_valid:
@@ -29,7 +32,6 @@ class Solver:
 
                 if Solver.solve(grid):
                     return True
-
 
                 empty_cell.set_value(0)
 
