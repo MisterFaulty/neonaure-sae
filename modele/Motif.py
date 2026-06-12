@@ -5,10 +5,14 @@
     Les frontières d'un motif sont représentées par des traits gras sur la grille.
 
 """
+<<<<<<< Updated upstream
 try:
     from modele.Case import Case
 except ImportError:
     from Case import Case
+=======
+from Case import  Case
+>>>>>>> Stashed changes
 
 
 
@@ -111,4 +115,9 @@ if __name__ == "__main__":
 
 
 
+<<<<<<< Updated upstream
     print(m1.get_size())
+=======
+    print(m1.get_size())
+
+>>>>>>> Stashed changes

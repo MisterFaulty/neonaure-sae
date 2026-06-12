@@ -23,6 +23,7 @@ class Case:
 
         self.__x = x
         self.__y = y
+<<<<<<< Updated upstream
         self.__is_hint = False
         self.set_value(value)
 
@@ -34,6 +35,10 @@ class Case:
         """Définit si la case est un indice."""
         self.__is_hint = is_hint
 
+=======
+        self.set_value(value)
+
+>>>>>>> Stashed changes
     """
     Creation des getters/setters pour x ,y et valeur
     

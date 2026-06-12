@@ -1,4 +1,5 @@
 import random
+<<<<<<< Updated upstream
 try:
     from modele.Grille import Grille
     from modele.Case import Case
@@ -7,6 +8,11 @@ except ImportError:
     from Grille import Grille
     from Case import Case
     from Validator import Validator
+=======
+from Grille import Grille
+from Case import Case
+from Validator import Validator
+>>>>>>> Stashed changes
 
 
 class Solver:
@@ -52,6 +58,7 @@ class Solver:
                 return case
         return None
 
+<<<<<<< Updated upstream
     @staticmethod
     def get_hint(grid):
         """
@@ -76,6 +83,8 @@ class Solver:
             grid.get_case(x, y).set_value(v)
         return None
 
+=======
+>>>>>>> Stashed changes
 
 """
 if __name__ == "__main__":
