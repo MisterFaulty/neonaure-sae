@@ -1,27 +1,41 @@
-# Première version du style de l'interface du Neonaure
-# par Charly Deléglise
-# --------------------------------------------------------------------------------------------------------------- #
-
 import sys
+import os
+base_dir = os.path.dirname(os.path.abspath(__file__))
+modele_dir = os.path.join(base_dir, 'modele')
+if modele_dir not in sys.path:
+    sys.path.insert(0, modele_dir)
+
+from modele.Case import Case
+from modele.Motif import Motif
+from modele.Grille import Grille
+from modele.Validator import Validator
+from modele.Solver import Solver
+
+import json
+import random
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
-    QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem
+    QPushButton, QLabel, QGridLayout, QFrame, QSizePolicy, QSpacerItem,
+    QFileDialog, QMessageBox, QStackedWidget 
 )
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QFont, QPalette, QColor, QPainter, QPainterPath, QPen, QBrush, QFontMetrics, QResizeEvent
 
-# --------------------------------------------------------------------------------------------------------------- #
+# == Classes ========================================================================================================== #
 
-# les couleurs
-CYAN       = "#00CCCC"
-DARK_CYAN  = "#009999"
-WHITE      = "#FFFFFF"
+
+# == Vue ============================================================================================================= #
+
+CYAN = "#00CCCC"
+DARK_CYAN = "#009999"
+WHITE = "#FFFFFF"
 LIGHT_GREY = "#F5F5F5"
-GREY       = "#C8C8C8"
-BLACK      = "#000000"
+GREY = "#C8C8C8"
+BLACK = "#000000"
+ERROR_RED = "#FF6B6B"
+HINT_BLUE = "#4A90D9"
 
-# boutons style windows7
-STYLE_ACTION_BTN = f
+STYLE_ACTION_BTN = f"""
     QPushButton {{
         background-color: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #40E0D0, stop:1 #00AAAA);
         color: #111;
@@ -36,7 +50,6 @@ STYLE_ACTION_BTN = f
     QPushButton:pressed {{ background-color: #007777; color: white; }}
 """
 
-# pavé numérique
 STYLE_DIGIT_BTN = f"""
     QPushButton {{
         background-color: {LIGHT_GREY};
@@ -48,205 +61,11 @@ STYLE_DIGIT_BTN = f"""
     }}
     QPushButton:hover   {{ background-color: #DAEEF0; border: 1px solid {CYAN}; }}
     QPushButton:pressed {{ background-color: {CYAN}; color: white; }}
-    QPushButton:checked {{ background-color: {CYAN}; 
-    """Module définissant la classe Grille du jeu Néonaure.
-
-Une Grille contient toutes les cases du plateau (valeur 0 si vide)
-et la liste des motifs (zones en traits gras). Elle peut être chargée
-depuis un fichier JSON et sauvegardée au même format.
-
-Architecture MVC : aucun affichage graphique ici. La méthode __str__
-existe uniquement pour le débogage en console."""
-
-import json
-import os
-import sys
-
-# Permettre les imports directs de Case et Motif quel que soit le dossier de lancement
-base_dir = os.path.dirname(os.path.abspath(__file__))
-if base_dir not in sys.path:
-    sys.path.insert(0, base_dir)
-
-from Case import Case
-from Motif import Motif
-
-
-class Grille:
-    #Représente une grille complète du Néonaure.
-
-    Attributes:
-        width (int): Largeur (nombre de colonnes).
-        height (int): Hauteur (nombre de lignes).
-        cases (list[Case]): Toutes les cases (vides ou remplies).
-        motifs (list[Motif]): Les motifs qui découpent la grille.
-    
-
-    def __init__(self, width=8, height=8):
-        Initialise une grille vide aux dimensions données.
-        self.__width = width
-        self.__height = height
-        self.__cases = []
-        self.__cases_by_pos = {}
-        self.__motifs = []
-        self.__generate_empty()
-
-    def __generate_empty(self):
-        """Crée toutes les cases vides (valeur 0) de la grille."""
-        for x in range(self.__width):
-            for y in range(self.__height):
-                case = Case(x, y, 0)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-
-  
-
-    def get_width(self):
-        return self.__width
-
-    def get_height(self):
-        return self.__height
-
-    def get_cases(self):
-        return self.__cases
-
-    def get_motifs(self):
-        return self.__motifs
-
-    def get_case(self, x, y):
-        """Retourne la case en (x, y), ou None. Accès O(1)."""
-        return self.__cases_by_pos.get((x, y))
-
-    def get_motif_of(self, x, y):
-        """Retourne le motif contenant la case (x, y), ou None."""
-        for motif in self.__motifs:
-            for case in motif.get_cases():
-                if case.get_x() == x and case.get_y() == y:
-                    return motif
-        return None
-
-   
-    def add_motif(self, motif):
-        """Ajoute un motif et s'assure que ses cases sont dans la grille."""
-        self.__motifs.append(motif)
-        for case in motif.get_cases():
-            existing = self.get_case(case.get_x(), case.get_y())
-            if existing is None:
-                self.__cases.append(case)
-                self.__cases_by_pos[(case.get_x(), case.get_y())] = case
-
-    # --- Persistance JSON ---
-
-    def _get_absolute_path(self, file_path):
-        """Sécurise le chemin du fichier au cas où __file__ n'est pas défini."""
-        if os.path.isabs(file_path):
-            return file_path
-        try:
-            base = os.path.dirname(os.path.abspath(__file__))
-            return os.path.join(base, file_path)
-        except NameError:
-            return os.path.abspath(file_path)
-
-    def load_json(self, file_path):
-        """Charge une grille depuis un fichier JSON.
-
-        Format attendu : {"motif1": [[x,y,v], ...], "motif2": ...}
-        """
-        file_path = self._get_absolute_path(file_path)
-        with open(file_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-
-        self.__cases = []
-        self.__cases_by_pos = {}
-        self.__motifs = []
-        max_x, max_y = 0, 0
-        for name, cells in data.items():
-            motif = Motif(name)
-            for cell in cells:
-                x, y, value = cell[0], cell[1], cell[2]
-                case = Case(x, y, value)
-                motif.add_case(case)
-                self.__cases.append(case)
-                self.__cases_by_pos[(x, y)] = case
-                if x > max_x:
-                    max_x = x
-                if y > max_y:
-                    max_y = y
-            self.__motifs.append(motif)
-        self.__width = max_x + 1
-        self.__height = max_y + 1
-
-    def save_json(self, file_path):
-        """Sauvegarde au format JSON des enseignants (compact)."""
-        file_path = self._get_absolute_path(file_path)
-        data = {}
-        for motif in self.__motifs:
-            cells = []
-            for case in motif.get_cases():
-                cells.append([case.get_x(), case.get_y(), case.get_value()])
-            data[motif.get_name()] = cells
-
-        # Format compact : chaque motif sur une ligne
-        lines = []
-        for name, cells in data.items():
-            cells_str = ", ".join(f"[{c[0]},{c[1]},{c[2]}]" for c in cells)
-            lines.append(f'  "{name}": [{cells_str}]')
-        json_content = "{\n" + ",\n".join(lines) + "\n}"
-
-        with open(file_path, "w", encoding="utf-8") as f:
-            f.write(json_content)
-
-    # --- Affichage console (debug) ---
-
-    def __str__(self):
-        lines = [
-            f"Grille {self.__width} x {self.__height}:",
-            f"{len(self.__motifs)} motif(s), {len(self.__cases)} case(s)"
-        ]
-        for y in range(self.__height):
-            row = []
-            for x in range(self.__width):
-                case = self.get_case(x, y)
-                if case is None:
-                    row.append(".")
-                else:
-                    v = case.get_value()
-                    row.append(str(v) if v != 0 else "·")
-            lines.append(" ".join(row))
-        return "\n".join(lines)
-
-
-# --- Tests ---
-if __name__ == "__main__":
-    print("=== Test 1 : Grille vide 8x8 ===")
-    g = Grille()
-    print(f"Dimensions : {g.get_width()} x {g.get_height()}")
-    print(f"Nombre de cases : {len(g.get_cases())}")
-
-    print("\n=== Test 2 : Chargement de grille1.json ===")
-    g2 = Grille()
-    g2.load_json("grille1.json")
-    print(g2)
-
-    print("\n=== Test 3 : Case (1,1) ===")
-    c = g2.get_case(1, 1)
-    print(f"Case trouvée : {c}")
-
-    print("\n=== Test 4 : Motif contenant (1,1) ===")
-    m = g2.get_motif_of(1, 1)
-    print(f"Motif : {m.get_name() if m else None}")
-
-    print("\n=== Test 5 : Sauvegarde ===")
-    g2.save_json("grille_save.json")
-    print("Fichier sauvegardé.")
-
-    print("\n=== Test 6 : Grille rectangulaire 6x4 ===")
-    g3 = Grille(6, 4)
-    print(f"Dimensions : {g3.get_width()} x {g3.get_height()}")
-    print(f"Nombre de cases : {len(g3.get_cases())}")color: white; border: 2px solid {DARK_CYAN}; }}
+    QPushButton:checked {{ background-color: {CYAN}; color: white; border: 2px solid {DARK_CYAN}; }}
+"""
 
 
 class OutlinedLabel(QLabel):
-    # widget pour text blanc contour cyan
     def __init__(self, text, parent=None):
         super().__init__(text, parent)
         self.outline_color = QColor(CYAN)
@@ -256,68 +75,305 @@ class OutlinedLabel(QLabel):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        
+
         rect = self.rect()
         font = self.font()
         fm = QFontMetrics(font)
-        
+
         text = self.text()
         text_width = fm.horizontalAdvance(text)
-        
-        # calcul du centrage
+
         x = (rect.width() - text_width) // 2
         y = (rect.height() + fm.ascent() - fm.descent()) // 2
-        
+
         path = QPainterPath()
         path.addText(x, y, font, text)
-        
-        # correction de l'attribut : PenCapStyle.RoundCap
-        pen = QPen(self.outline_color, self.outline_width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
+
+        pen = QPen(self.outline_color, self.outline_width, Qt.PenStyle.SolidLine,
+                   Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
         painter.drawPath(path)
-        
+
         painter.fillPath(path, QBrush(self.fill_color))
 
-# --------------------------------------------------------------------------------------------------------------- #
 
-# la fenètre !!
-class NeonaurWindow(QMainWindow):
+class CaseIHM(QLabel):
+    clicked = pyqtSignal(object)
 
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle("Neonaure")
-        self.setMinimumSize(780, 585)
-        self.resize(780, 585)
+    def __init__(self, case, parent=None):
+        super().__init__(parent)
+        self.case = case
+        self.bordures = []
+        self.is_error = False
 
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
+        self.setMinimumSize(20, 20)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self.update_display()
+
+    def set_bordures(self, bordures):
+        self.bordures = bordures
+        self.update_style(False)
+
+    def update_style(self, selectionnee=False):
+        b_top = f"3px solid {CYAN}" if "top" in self.bordures else f"1px solid {GREY}"
+        b_bottom = f"3px solid {CYAN}" if "bottom" in self.bordures else f"1px solid {GREY}"
+        b_left = f"3px solid {CYAN}" if "left" in self.bordures else f"1px solid {GREY}"
+        b_right = f"3px solid {CYAN}" if "right" in self.bordures else f"1px solid {GREY}"
+
+        if self.is_error:
+            bg_color = ERROR_RED
+        elif selectionnee:
+            bg_color = "#DDEEFF"
+        else:
+            bg_color = WHITE
+
+        text_color = HINT_BLUE if self.case.is_hint() else "#2c3e50"
+
+        self.setStyleSheet(f"""
+            QLabel {{
+                background-color: {bg_color};
+                border-top: {b_top};
+                border-bottom: {b_bottom};
+                border-left: {b_left};
+                border-right: {b_right};
+                color: {text_color};
+            }}
+        """)
+
+    def update_display(self):
+        val = self.case.get_value()
+        self.setText(str(val) if val > 0 else "")
+
+    def set_error(self, is_error):
+        self.is_error = is_error
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.clicked.emit(self)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        w = self.width()
+        h = self.height()
+        font_size = max(10, min(w, h) // 2)
+        font = QFont("Arial", font_size, QFont.Weight.Bold)
+        self.setFont(font)
+
+
+class GrilleWidget(QWidget):
+    case_selected = pyqtSignal(object)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.grille = None
+        self.cases_ihm = {}
+        self.case_selectionnee = None
+        self.layout_grille = QGridLayout(self)
+        self.layout_grille.setSpacing(0)
+        self.layout_grille.setContentsMargins(0, 0, 0, 0)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def set_grille(self, grille):
+        self.grille = grille
+        self.case_selectionnee = None
+        self._build_grid()
+
+    def _build_grid(self):
+        while self.layout_grille.count():
+            item = self.layout_grille.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        self.cases_ihm = {}
+
+        if self.grille is None:
+            return
+
+        width = self.grille.get_width()
+        height = self.grille.get_height()
+
+        for i in range(width):
+            self.layout_grille.setColumnStretch(i, 1)
+        for i in range(height):
+            self.layout_grille.setRowStretch(i, 1)
+
+        for y in range(height):
+            for x in range(width):
+                case = self.grille.get_case(x, y)
+                if case is None:
+                    continue
+
+                case_ihm = CaseIHM(case)
+                case_ihm.clicked.connect(self._on_case_clicked)
+                bordures = self._calculate_borders(x, y)
+                case_ihm.set_bordures(bordures)
+                self.layout_grille.addWidget(case_ihm, y, x)
+                self.cases_ihm[(x, y)] = case_ihm
+
+    def _calculate_borders(self, x, y):
+        bordures = []
+        motif = self.grille.get_motif_of(x, y)
+        if motif is None:
+            return bordures
+
+        if y == 0 or self.grille.get_motif_of(x, y-1) != motif:
+            bordures.append("top")
+        if y == self.grille.get_height()-1 or self.grille.get_motif_of(x, y+1) != motif:
+            bordures.append("bottom")
+        if x == 0 or self.grille.get_motif_of(x-1, y) != motif:
+            bordures.append("left")
+        if x == self.grille.get_width()-1 or self.grille.get_motif_of(x+1, y) != motif:
+            bordures.append("right")
+        return bordures
+
+    def _on_case_clicked(self, case_ihm):
+        if self.case_selectionnee:
+            self.case_selectionnee.update_style(False)
+        self.case_selectionnee = case_ihm
+        self.case_selectionnee.update_style(True)
+        self.case_selected.emit(case_ihm)
+
+    def get_selected_case(self):
+        return self.case_selectionnee
+
+    def set_value(self, value):
+        if self.case_selectionnee is None:
+            return False, ""
+
+        case = self.case_selectionnee.case
+        if case.is_hint():
+            return False, ""
+
+        x, y = case.get_x(), case.get_y()
+
+        if value == 0:
+            case.set_value(0)
+            self.case_selectionnee.set_error(False)
+            self.case_selectionnee.update_display()
+            self.case_selectionnee.update_style(True)
+            return True, ""
+
+        is_valid, _ = Validator.check_move(self.grille, x, y, value)
+        case.set_value(value)
+        self.case_selectionnee.set_error(not is_valid)
+        self.case_selectionnee.update_display()
+        self.case_selectionnee.update_style(True)
+        return is_valid, ""
+
+    def refresh_all(self):
+        for case_ihm in self.cases_ihm.values():
+            case_ihm.update_display()
+            case_ihm.set_error(False)
+            case_ihm.update_style(case_ihm == self.case_selectionnee)
+
+    def check_victory(self):
+        return Validator.check_grid_complete(self.grille)
+
+
+# == Page d'accueil =================================================================================================== #
+
+class StartPage(QWidget):
+    """Page d'entrée du jeu : titre + choix nouvelle grille / chargement."""
+
+    new_grid_requested = pyqtSignal()
+    load_grid_requested = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet(f"background-color: {WHITE};")
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(40, 40, 40, 40)
+        layout.setSpacing(0)
+
+        layout.addStretch(2)
+
+        # titre
+        font_title = QFont("Arial", 64, QFont.Weight.Bold)
+        title = OutlinedLabel("NEONAURE")
+        title.outline_width = 5
+        title.setFont(font_title)
+        title.setFixedHeight(110)
+        title.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(title)
+        fm = QFontMetrics(font_title)
+        title_width = fm.horizontalAdvance("NEONAURE")
+
+        double_line = QFrame()
+        double_line.setFixedWidth(title_width)
+        double_line.setFixedHeight(16)
+        double_line.setStyleSheet(
+            f"border-top: 4px solid {CYAN}; border-bottom: 4px solid {CYAN}; background-color: transparent;"
+        )
+
+        line_row = QHBoxLayout()
+        line_row.addStretch()
+        line_row.addWidget(double_line)
+        line_row.addStretch()
+        layout.addLayout(line_row)
+
+        layout.addSpacerItem(QSpacerItem(0, 25, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # boutons
+        self.btn_new = QPushButton("nouvelle grille aléatoire")
+        self.btn_load = QPushButton("charger une grille")
+
+        for btn in (self.btn_new, self.btn_load):
+            btn.setFixedSize(320, 50)
+            btn.setStyleSheet(STYLE_ACTION_BTN)
+
+            row = QHBoxLayout()
+            row.addStretch()
+            row.addWidget(btn)
+            row.addStretch()
+            layout.addLayout(row)
+            layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        self.btn_new.clicked.connect(self.new_grid_requested.emit)
+        self.btn_load.clicked.connect(self.load_grid_requested.emit)
+
+        layout.addStretch(3)
+
+        # signature
+        lbl_credits = QLabel("Projet réalisé par Charly Deléglise, Selim Trilla et Younaïs Imamou")
+        lbl_credits.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_credits.setStyleSheet("font-size: 9px; color: #444; font-weight: 500;")
+        layout.addWidget(lbl_credits)
+
+
+# == Page de jeu ====================================================================================================== #
+
+class GamePage(QWidget):
+
+    back_to_menu = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+        self.grille = Grille(8, 8)
+        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
 
         self._build_ui()
+        self.grille_widget.set_grille(self.grille)
+        self.grille_widget.case_selected.connect(self._on_case_selected)
 
     def _build_ui(self):
-        root = QWidget()
-        self.setCentralWidget(root)
-
-        main_layout = QVBoxLayout(root)
+        main_layout = QVBoxLayout(self)
         main_layout.setContentsMargins(0, 15, 0, 15)
         main_layout.setSpacing(0)
 
-        # ligne cyan supérieure
         top_line = QFrame()
         top_line.setFrameShape(QFrame.Shape.HLine)
         top_line.setStyleSheet(f"background-color: {CYAN}; max-height: 6px; min-height: 6px; border: none;")
         main_layout.addWidget(top_line)
 
-        # conteneur central
         content_layout = QHBoxLayout()
         content_layout.setContentsMargins(20, 20, 20, 20)
         content_layout.setSpacing(20)
 
-        content_layout.addWidget(self._grid_placeholder(), stretch=3)
+        content_layout.addWidget(self._grid_container(), stretch=3)
 
-        # ligne de séparation centrale verticale
         sep = QFrame()
         sep.setFrameShape(QFrame.Shape.VLine)
         sep.setStyleSheet(f"background-color: {CYAN}; max-width: 3px; min-width: 3px; border: none;")
@@ -327,52 +383,48 @@ class NeonaurWindow(QMainWindow):
 
         main_layout.addLayout(content_layout)
 
-        # ligne cyan inférieure
         bottom_line = QFrame()
         bottom_line.setFrameShape(QFrame.Shape.HLine)
         bottom_line.setStyleSheet(f"background-color: {CYAN}; max-height: 6px; min-height: 6px; border: none;")
         main_layout.addWidget(bottom_line)
 
-    def _grid_placeholder(self) -> QFrame:
+    def _grid_container(self) -> QFrame:
         frame = QFrame()
-        frame.setMinimumSize(400, 400)
         frame.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         frame.setStyleSheet(f"QFrame {{ background-color: {WHITE}; border: 4px solid {CYAN}; }}")
 
         layout = QVBoxLayout(frame)
-        lbl = QLabel("Je suis une grille ^^")
-        lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        lbl.setStyleSheet(f"color: {BLACK}; font-size: 16px; border: none;")
-        layout.addWidget(lbl)
-
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+        self.grille_widget = GrilleWidget()
+        layout.addWidget(self.grille_widget)
         return frame
 
     def _side_panel(self) -> QWidget:
         panel = QWidget()
-        panel.setFixedWidth(300) 
+        panel.setFixedWidth(300)
         panel.setStyleSheet(f"background-color: {WHITE}; border: none;")
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(10, 10, 10, 10)
-        layout.setSpacing(12)
+        layout.setSpacing(0)
 
-        # conteneur pour l'alignement et le soulignement propre
+        # Titre
         title_container = QWidget()
         title_vbox = QVBoxLayout(title_container)
         title_vbox.setContentsMargins(0, 0, 0, 0)
         title_vbox.setSpacing(6)
         title_vbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        # grand titre
         font_title = QFont("Arial", 32, QFont.Weight.Bold)
         self.lbl_title = OutlinedLabel("NEONAURE")
         self.lbl_title.setFont(font_title)
         self.lbl_title.setFixedHeight(55)
         title_vbox.addWidget(self.lbl_title)
+
         fm = QFontMetrics(font_title)
         title_width = fm.horizontalAdvance("NEONAURE")
 
-        # le soulignement (en double!!)
         double_line = QFrame()
         double_line.setFixedWidth(title_width)
         double_line.setFixedHeight(12)
@@ -380,13 +432,12 @@ class NeonaurWindow(QMainWindow):
         title_vbox.addWidget(double_line)
 
         layout.addWidget(title_container)
-
         layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # case sélectionnée
         layout.addWidget(self._cell_info())
 
-        layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
-
-        # zone du pavé numérique propre
+        # pavé numérique
         digit_container = QWidget()
         digit_layout = QHBoxLayout(digit_container)
         digit_layout.setContentsMargins(0, 0, 0, 0)
@@ -394,18 +445,20 @@ class NeonaurWindow(QMainWindow):
         digit_layout.addWidget(self._digit_pad())
         digit_layout.addStretch()
         layout.addWidget(digit_container)
+        layout.addSpacerItem(QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
-        layout.addSpacerItem(QSpacerItem(0, 15, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
-        
-        # lignes de séparations horizontales au dessus et en dessous des boutons d'action
+        # barre supérieure
         line_above = QFrame()
         line_above.setFrameShape(QFrame.Shape.HLine)
         line_above.setStyleSheet(f"background-color: {CYAN}; max-height: 2px; min-height: 2px; border: none;")
         layout.addWidget(line_above)
-        layout.addSpacerItem(QSpacerItem(0, 5, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
-        layout.addWidget(self._action_buttons())
-        layout.addSpacerItem(QSpacerItem(0, 5, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+        layout.addSpacerItem(QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
 
+        # boutons d'action
+        layout.addWidget(self._action_buttons())
+        layout.addSpacerItem(QSpacerItem(0, 8, QSizePolicy.Policy.Minimum, QSizePolicy.Policy.Fixed))
+
+        # barre inférieure
         line_below = QFrame()
         line_below.setFrameShape(QFrame.Shape.HLine)
         line_below.setStyleSheet(f"background-color: {CYAN}; max-height: 2px; min-height: 2px; border: none;")
@@ -428,11 +481,11 @@ class NeonaurWindow(QMainWindow):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(5)
 
-        lbl = QLabel("Case cliquée :")
+        lbl = QLabel("Case sélectionnée :")
         lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         lbl.setStyleSheet("font-size: 12px; color: #333; font-weight: bold;")
 
-        self.lbl_cell = QLabel("L? C?")
+        self.lbl_cell = QLabel("Aucune")
         self.lbl_cell.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.lbl_cell.setFont(QFont("Arial", 13, QFont.Weight.Bold))
         self.lbl_cell.setStyleSheet(f"color: {BLACK};")
@@ -447,19 +500,16 @@ class NeonaurWindow(QMainWindow):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(12)
 
-        # boutons 1, 2, 3
         row1_layout = QHBoxLayout()
         row1_layout.setContentsMargins(0, 0, 0, 0)
         row1_layout.setSpacing(12)
 
-        # boutons 4, 5
         row2_layout = QHBoxLayout()
         row2_layout.setContentsMargins(0, 0, 0, 0)
         row2_layout.setSpacing(12)
 
-        self.digit_buttons: list[QPushButton] = []
-        
-        # ajout des boutons 1 à 3 sur la première ligne
+        self.digit_buttons = []
+
         for i in range(1, 4):
             btn = QPushButton(str(i))
             btn.setFixedSize(52, 52)
@@ -469,7 +519,6 @@ class NeonaurWindow(QMainWindow):
             row1_layout.addWidget(btn)
             self.digit_buttons.append(btn)
 
-        # ajout des boutons 4 et 5 propre en dessous (5 cases pas 6 comme la maquette!!)
         row2_layout.addStretch()
         for i in range(4, 6):
             btn = QPushButton(str(i))
@@ -483,7 +532,6 @@ class NeonaurWindow(QMainWindow):
 
         main_layout.addLayout(row1_layout)
         main_layout.addLayout(row2_layout)
-
         return w
 
     def _action_buttons(self) -> QWidget:
@@ -493,35 +541,187 @@ class NeonaurWindow(QMainWindow):
         grid.setSpacing(12)
 
         actions = [
-            ("charger une grille",     self._on_load,  0, 0),
-            ("sauvegarder la grille",  self._on_save,  0, 1),
-            ("résoudre la grille",     self._on_solve, 1, 0),
-            ("avoir un indice",        self._on_hint,  1, 1),
+            ("charger une grille", self._on_load, 0, 0),
+            ("sauvegarder la grille", self._on_save, 0, 1),
+            ("résoudre la grille", self._on_solve, 1, 0),
+            ("avoir un indice", self._on_hint, 1, 1),
+            ("nouvelle grille", self._on_new, 2, 0),
+            ("menu principal", self._on_back_to_menu, 2, 1),
         ]
 
-        for label, slot, row, col in actions:
+        for item in actions:
+            label, slot, row, col = item[0], item[1], item[2], item[3]
+            rowspan = item[4] if len(item) > 4 else 1
+            colspan = item[5] if len(item) > 5 else 1
+
             btn = QPushButton(label)
             btn.setFixedHeight(36)
             btn.setStyleSheet(STYLE_ACTION_BTN)
             btn.clicked.connect(slot)
-            grid.addWidget(btn, row, col)
+            grid.addWidget(btn, row, col, rowspan, colspan)
 
         return w
 
-    # test des boutons pour accorder avec les classes des copains
+    def new_grid(self):
+        """Génère une nouvelle grille aléatoire et l'affiche."""
+        self.grille = Grille(8, 8)
+        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
+        self.grille_widget.set_grille(self.grille)
+        self.lbl_cell.setText("Aucune")
+
+    def load_grid(self, file_path):
+        """Charge une grille depuis un fichier JSON. Retourne True en cas de succès."""
+        try:
+            grille = Grille()
+            grille.load_json(file_path)
+            self.grille = grille
+            self.grille_widget.set_grille(self.grille)
+            self.lbl_cell.setText("Aucune")
+            return True
+        except Exception as e:
+            QMessageBox.critical(self, "erreur", f"impossible de charger la grille :\n{e}")
+            return False
+
+    def _on_case_selected(self, case_ihm):
+        self._update_cell_info()
+
     def _on_digit_clicked(self):
+        sender = self.sender()
         for btn in self.digit_buttons:
-            if btn is not self.sender():
+            if btn is not sender:
                 btn.setChecked(False)
 
-    def _on_load(self):  print("test charger ok")
-    def _on_save(self):  print("test sauvegarder ok")
-    def _on_solve(self): print("test résoudre ok")
-    def _on_hint(self):  print("test indice ok")
+        if sender.isChecked():
+            value = int(sender.text())
+            self.grille_widget.set_value(value)
+            self._update_cell_info()
+            self._check_victory()
+        else:
+            sender.setChecked(False)
 
-# --------------------------------------------------------------------------------------------------------------- #
+    def _update_cell_info(self):
+        case_ihm = self.grille_widget.get_selected_case()
+        if case_ihm:
+            case = case_ihm.case
+            motif = self.grille.get_motif_of(case.get_x(), case.get_y())
+            motif_name = motif.get_name() if motif else "?"
+            motif_size = motif.get_size() if motif else "?"
+            self.lbl_cell.setText(f"L{case.get_y()+1} C{case.get_x()+1}")
+        else:
+            self.lbl_cell.setText("aucune")
 
-# un main parcequ'il faut un main...
+    def _check_victory(self):
+        is_complete, _ = self.grille_widget.check_victory()
+        if is_complete:
+            QMessageBox.information(self, "bravo! !", "vous avez résolu la grille !!!! :)")
+
+    def _on_load(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
+        if file_path:
+            if self.load_grid(file_path):
+                QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
+
+    def _on_save(self):
+        file_path, _ = QFileDialog.getSaveFileName(self, "sauvegarder la grille", "grille.json", "fichiers JSON (*.json);;tous les fichiers (*)")
+        if file_path:
+            try:
+                self.grille.save_json(file_path)
+                QMessageBox.information(self, "sauvegarde", f"grille sauvegardée dans {os.path.basename(file_path)}")
+            except Exception as e:
+                QMessageBox.critical(self, "erreur", f"impossible de sauvegarder la grille :\n{e}")
+
+    def _on_solve(self):
+        reply = QMessageBox.question(self, "résoudre", "voulez vous avoir la solution de la grille ?",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            if Solver.solve(self.grille):
+                self.grille_widget.refresh_all()
+                QMessageBox.information(self, "résolution", "grille résolue !!")
+            else:
+                QMessageBox.warning(self, "résolution", "impossible de résoudre cette grille")
+
+    def _on_hint(self):
+        result = Solver.get_hint(self.grille)
+        if result:
+            x, y, value = result
+            case = self.grille.get_case(x, y)
+            case.set_value(value)
+            self.grille_widget.refresh_all()
+            QMessageBox.information(self, "indice", f"case L{y+1} C{x+1} = {value}")
+        else:
+            QMessageBox.warning(self, "indice", "aucun indice dispo :(")
+
+    def _on_new(self):
+        reply = QMessageBox.question(self, "nouvelle grille", "Voulez vous générer une nouvelle grille ? L'ancienne sera perdue si non sauvegardée",
+                                     QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+        if reply == QMessageBox.StandardButton.Yes:
+            self.new_grid()
+            QMessageBox.information(self, "nouvelle grille", "nouvelle grille générée !")
+
+    def _on_back_to_menu(self):
+        self.back_to_menu.emit()
+
+    def keyPressEvent(self, event):
+        text = event.text()
+        if text.isdigit() and "1" <= text <= "5":
+            value = int(text)
+            self.grille_widget.set_value(value)
+            self._update_cell_info()
+            self._check_victory()
+        elif event.key() in (Qt.Key.Key_Backspace, Qt.Key.Key_Delete, Qt.Key.Key_0):
+            self.grille_widget.set_value(0)
+            self._update_cell_info()
+
+
+# == Fenetre ============================================================================================================= #
+
+class NeonaurWindow(QMainWindow):
+    def __init__(self):
+        super().__init__()
+        self.setWindowTitle("Neonaure")
+        self.setMinimumSize(825, 550)
+        self.resize(825, 550)
+
+        palette = self.palette()
+        palette.setColor(QPalette.ColorRole.Window, QColor(WHITE))
+        self.setPalette(palette)
+        self.setAutoFillBackground(True)
+
+        self.stack = QStackedWidget()
+        self.setCentralWidget(self.stack)
+
+        self.start_page = StartPage()
+        self.game_page = GamePage()
+
+        self.stack.addWidget(self.start_page)
+        self.stack.addWidget(self.game_page)
+        self.stack.setCurrentWidget(self.start_page)
+
+        self.start_page.new_grid_requested.connect(self._on_new_grid)
+        self.start_page.load_grid_requested.connect(self._on_load_grid)
+        self.game_page.back_to_menu.connect(self._on_back_to_menu)
+
+    def _on_new_grid(self):
+        self.game_page.new_grid()
+        self.stack.setCurrentWidget(self.game_page)
+
+    def _on_load_grid(self):
+        file_path, _ = QFileDialog.getOpenFileName(self, "charger une grille", "", "fichiers JSON (*.json);;tous les fichiers (*)")
+        if file_path:
+            if self.game_page.load_grid(file_path):
+                QMessageBox.information(self, "chargement", f"grille chargée depuis {os.path.basename(file_path)}")
+                self.stack.setCurrentWidget(self.game_page)
+
+    def _on_back_to_menu(self):
+        self.stack.setCurrentWidget(self.start_page)
+
+    def keyPressEvent(self, event):
+        if self.stack.currentWidget() is self.game_page:
+            self.game_page.keyPressEvent(event)
+        else:
+            super().keyPressEvent(event)
+
+
 def main():
     app = QApplication(sys.argv)
     app.setStyle("Fusion")
@@ -529,7 +729,6 @@ def main():
     window.show()
     sys.exit(app.exec())
 
+
 if __name__ == "__main__":
     main()
-
-# si tu vois ça dans le git c'est que le push a bien marché et que tu as la dernère version de "interfacev1.py"!! :)
