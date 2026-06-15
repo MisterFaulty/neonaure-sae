@@ -43,7 +43,7 @@ class MainController(QMainWindow):
 
     def _on_new_grid(self):
         self._init_game()
-        self.game_controller.on_new()   # génère une nouvelle grille
+        self.game_controller.generate_new_grid()   # génère une nouvelle grille
         self.stack.setCurrentWidget(self.game_page)
 
     def _on_load_grid(self):

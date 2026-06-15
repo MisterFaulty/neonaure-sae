@@ -16,7 +16,6 @@ class GameController(QObject):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.grille = Grille(8, 8)
-        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
         self.view = GameView(self.grille)
 
         # Connexion des signaux de la vue aux slots du contrôleur
@@ -97,11 +96,18 @@ class GameController(QObject):
         else:
             QMessageBox.warning(self.view, "indice", "aucun indice dispo :(")
 
+    def generate_new_grid(self):
+        """Génère une nouvelle grille sans demander de confirmation."""
+        self.grille = Grille(8, 8)
+        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
+        self.view.set_grille(self.grille)
+
     def on_new(self):
         reply = QMessageBox.question(self.view, "nouvelle grille",
                                      "Voulez vous générer une nouvelle grille ? L'ancienne sera perdue si non sauvegardée",
                                      QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
         if reply == QMessageBox.StandardButton.Yes:
+            self.generate_new_grid()
             self.grille = Grille(8, 8)
             self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
             self.view.set_grille(self.grille)
