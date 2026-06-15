@@ -14,10 +14,6 @@
 NEONAURE-SAE/
 │
 ├── __pycache__/
-│   ├── interfacev1.cpython-314.pyc
-│   ├── main.cpython-314.pyc
-│   ├── neonaure.cpython-314.pyc
-│   └── test.cpython-314.pyc
 │
 ├── controllers/
 │   ├── __pycache__/
@@ -25,34 +21,13 @@ NEONAURE-SAE/
 │   └── main_controller.py
 │
 ├── grids/
-│   ├── grids_alea/
-│   │   ├── grille1.json
-│   │   ├── grille2.json
-│   │   ├── grille3.json
-│   │   ├── grille4.json
-│   │   ├── grille5.json
-│   │   └── grille6.json
-│   └── grids_cpg/
+│   ├── grille_01.json
+│   ├── grille_02.json
+│   ├── (...)
+│   └── grille_50.json
 │
 ├── modele/
 │   ├── __pycache__/
-│   │   ├── __init__.cpython-313.pyc
-│   │   ├── __init__.cpython-314.pyc
-│   │   ├── a.cpython-314.pyc
-│   │   ├── Case.cpython-313.pyc
-│   │   ├── Case.cpython-314.pyc
-│   │   ├── GridFiller.cpython-314.pyc
-│   │   ├── Grille.cpython-313.pyc
-│   │   ├── Grille.cpython-314.pyc
-│   │   ├── LevelGenerator.cpython-313.pyc
-│   │   ├── LevelGenerator.cpython-314.pyc
-│   │   ├── Motif.cpython-313.pyc
-│   │   ├── Motif.cpython-314.pyc
-│   │   ├── RandomGenerator.cpython-314.pyc
-│   │   ├── Solver.cpython-313.pyc
-│   │   ├── Solver.cpython-314.pyc
-│   │   ├── Validator.cpython-313.pyc
-│   │   └── Validator.cpython-314.pyc
 │   ├── Case.py
 │   ├── GridFiller.py
 │   ├── Grille.py
@@ -64,12 +39,6 @@ NEONAURE-SAE/
 │
 ├── views/
 │   ├── __pycache__/
-│   │   ├── custom_widgets.cpython-313.pyc
-│   │   ├── custom_widgets.cpython-314.pyc
-│   │   ├── game_view.cpython-313.pyc
-│   │   ├── game_view.cpython-314.pyc
-│   │   ├── start_page.cpython-313.pyc
-│   │   └── start_page.cpython-314.pyc
 │   ├── custom_widgets.py
 │   ├── game_view.py
 │   └── start_page.py

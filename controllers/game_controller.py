@@ -34,7 +34,7 @@ class GameController(QObject):
     def generate_new_grid(self):
         """Charge une grille aléatoire depuis le dossier grids/grids_alea/."""
         import random
-        grids_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "grids", "grids_alea")
+        grids_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "grids")
         json_files = [f for f in os.listdir(grids_dir) if f.endswith(".json")]
         if not json_files:
             QMessageBox.critical(self.view, "erreur", "aucune grille trouvée dans le dossier grids/grids_alea/")
