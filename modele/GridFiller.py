@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 """Module GridFiller pour le jeu Néonaure.
 
 Étape 1 de la génération aléatoire de niveaux :
@@ -146,8 +145,4 @@ if __name__ == "__main__":
                             ok = False
         if ok:
             print("Aucun conflit detecte : OK !")
-=======
 
-
-import random
->>>>>>> Stashed changes
