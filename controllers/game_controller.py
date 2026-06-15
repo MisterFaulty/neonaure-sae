@@ -32,10 +32,15 @@ class GameController(QObject):
         self.back_to_menu = callback
  
     def generate_new_grid(self):
-        """Génère une nouvelle grille sans demander de confirmation."""
-        self.grille = Grille(8, 8)
-        self.grille.generate_motifs(min_size=2, max_size=5, hint_chance=0.25)
-        self.view.set_grille(self.grille)
+        """Charge une grille aléatoire depuis le dossier grids/grids_alea/."""
+        import random
+        grids_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "grids", "grids_alea")
+        json_files = [f for f in os.listdir(grids_dir) if f.endswith(".json")]
+        if not json_files:
+            QMessageBox.critical(self.view, "erreur", "aucune grille trouvée dans le dossier grids/grids_alea/")
+            return
+        chosen = random.choice(json_files)
+        self.load_grid(os.path.join(grids_dir, chosen))
  
     def load_grid(self, file_path):
         """Charge une grille depuis un fichier. Retourne True si succès, False sinon."""

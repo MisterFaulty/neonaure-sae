@@ -296,5 +296,4 @@ class GameView(QWidget):
         return self.grille_widget.check_victory()
 
     def keyPressEvent(self, event):
-        # Les touches sont transmises au contrôleur via la fenêtre principale
-        pass  # La fenêtre principale redirige vers le contrôleur
+        event.ignore()
